@@ -6,6 +6,7 @@ const SubjectSchema = new mongoose.Schema(
     code: { type: String, required: true, trim: true },
     boardId: { type: mongoose.Schema.Types.ObjectId, ref: 'Board', required: true, index: true },
     classId: { type: mongoose.Schema.Types.ObjectId, ref: 'Class', required: true, index: true },
+    status: { type: Number, enum: [0, 1], default: 1, index: true },
     easyQuestions: { type: Number, default: 0 },
     mediumQuestions: { type: Number, default: 0 },
     hardQuestions: { type: Number, default: 0 },

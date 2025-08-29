@@ -17,6 +17,7 @@ const Requests = () => {
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all') // all | board | class | subject
   const [statusFilter, setStatusFilter] = useState('pending') // all | pending | approved | rejected
+  const [activeFilter, setActiveFilter] = useState('all') // all | 1 | 0
 
   const [viewId, setViewId] = useState(null)
   const [adminNote, setAdminNote] = useState('')
@@ -30,7 +31,9 @@ const Requests = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        const list = await RequestsAPI.list({ type: typeFilter, status: statusFilter })
+        const params = { type: typeFilter, status: statusFilter }
+        if (activeFilter !== 'all') params.activeStatus = Number(activeFilter)
+        const list = await RequestsAPI.list(params)
         setRequests(Array.isArray(list) ? list : [])
       } catch (e) {
         console.error('Failed to load requests', e)
@@ -38,7 +41,7 @@ const Requests = () => {
       }
     }
     load()
-  }, [typeFilter, statusFilter])
+  }, [typeFilter, statusFilter, activeFilter])
 
   // Helpers to find IDs by name (best-effort)
   const findBoardByName = (name) => (boards || []).find(b => b.name?.toLowerCase() === name?.toLowerCase()) || null
@@ -49,6 +52,7 @@ const Requests = () => {
     let list = requests
     if (typeFilter !== 'all') list = list.filter(r => r.type === typeFilter)
     if (statusFilter !== 'all') list = list.filter(r => r.status === statusFilter)
+    if (activeFilter !== 'all') list = list.filter(r => r.activeStatus === Number(activeFilter))
     const q = search.trim().toLowerCase()
     if (q) {
       list = list.filter(r => {
@@ -59,7 +63,7 @@ const Requests = () => {
     }
     // Most recent first
     return [...list].sort((a, b) => (new Date(b.createdAt) - new Date(a.createdAt)))
-  }, [requests, typeFilter, statusFilter, search])
+  }, [requests, typeFilter, statusFilter, activeFilter, search])
 
   const current = useMemo(() => filtered.find(r => r.id === viewId || r._id === viewId) || null, [filtered, viewId])
 
@@ -70,7 +74,9 @@ const Requests = () => {
       const id = req._id || req.id
       await RequestsAPI.approve(id, adminNote?.trim())
       // Refresh list
-      const list = await RequestsAPI.list({ type: typeFilter, status: statusFilter })
+      const params = { type: typeFilter, status: statusFilter }
+      if (activeFilter !== 'all') params.activeStatus = Number(activeFilter)
+      const list = await RequestsAPI.list(params)
       setRequests(Array.isArray(list) ? list : [])
     } catch (e) {
       console.error('Approve failed', e)
@@ -85,7 +91,9 @@ const Requests = () => {
     try {
       const id = req._id || req.id
       await RequestsAPI.reject(id, adminNote?.trim())
-      const list = await RequestsAPI.list({ type: typeFilter, status: statusFilter })
+      const params = { type: typeFilter, status: statusFilter }
+      if (activeFilter !== 'all') params.activeStatus = Number(activeFilter)
+      const list = await RequestsAPI.list(params)
       setRequests(Array.isArray(list) ? list : [])
     } catch (e) {
       console.error('Reject failed', e)
@@ -107,6 +115,12 @@ const Requests = () => {
   const statusBadge = (status) => (
     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${status === 'pending' ? 'bg-yellow-100 text-yellow-800' : status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
       {status[0].toUpperCase() + status.slice(1)}
+    </span>
+  )
+
+  const activeBadge = (activeStatus) => (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${activeStatus === 1 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'}`}>
+      {activeStatus === 1 ? 'Active' : 'Inactive'}
     </span>
   )
 
@@ -153,6 +167,11 @@ const Requests = () => {
           <option value="approved">Approved</option>
           <option value="rejected">Rejected</option>
         </select>
+        <select className="rounded-md border-gray-300" value={activeFilter} onChange={(e) => setActiveFilter(e.target.value)}>
+          <option value="all">All Active</option>
+          <option value="1">Active</option>
+          <option value="0">Inactive</option>
+        </select>
         <div className="ml-auto text-sm text-gray-600">Showing {filtered.length} request(s)</div>
       </div>
 
@@ -166,13 +185,14 @@ const Requests = () => {
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Requested By</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Active</th>
               <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-100">
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">No requests found</td>
+                <td colSpan={7} className="px-4 py-8 text-center text-gray-500">No requests found</td>
               </tr>
             ) : (
               filtered.map(r => (
@@ -182,6 +202,7 @@ const Requests = () => {
                   <td className="px-4 py-3 text-gray-700">{r.customer?.name || '—'}<div className="text-xs text-gray-500">{r.customer?.email || ''}</div></td>
                   <td className="px-4 py-3 text-gray-600">{new Date(r.createdAt).toLocaleString()}</td>
                   <td className="px-4 py-3">{statusBadge(r.status)}</td>
+                  <td className="px-4 py-3">{activeBadge(r.activeStatus)}</td>
                   <td className="px-4 py-3 text-right space-x-2">
                     <button
                       onClick={() => { setViewId(r._id || r.id); setAdminNote(r.note || '') }}
@@ -222,6 +243,10 @@ const Requests = () => {
                   {current.decisionAt && (
                     <p className="text-sm text-gray-600">Decided: <span className="font-medium text-gray-800">{new Date(current.decisionAt).toLocaleString()}</span></p>
                   )}
+                </div>
+                <div className="bg-gray-50 rounded-md p-4">
+                  <p className="text-xs uppercase text-gray-500">Active</p>
+                  <p className="text-base font-semibold text-gray-900">{current.activeStatus === 1 ? 'Active' : 'Inactive'}</p>
                 </div>
                 <div className="bg-gray-50 rounded-md p-4 md:col-span-2">
                   <p className="text-xs uppercase text-gray-500">Requested By</p>

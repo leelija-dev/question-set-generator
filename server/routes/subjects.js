@@ -29,11 +29,13 @@ router.post('/', async (req, res) => {
     if (exists) return res.status(409).json({ message: 'Subject already exists in this class' });
 
     const code = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 6) || name.toUpperCase().slice(0, 6);
+    const status = [0, 1].includes(Number(req.body.status)) ? Number(req.body.status) : 1;
     const subject = await Subject.create({
       name,
       code,
       boardId,
       classId,
+      status,
       easyQuestions: req.body.easyQuestions || 0,
       mediumQuestions: req.body.mediumQuestions || 0,
       hardQuestions: req.body.hardQuestions || 0,
@@ -63,6 +65,10 @@ router.put('/:id', async (req, res) => {
     ['easyQuestions', 'mediumQuestions', 'hardQuestions'].forEach(k => {
       if (typeof req.body[k] === 'number') update[k] = req.body[k];
     });
+    if (typeof req.body.status !== 'undefined') {
+      const s = Number(req.body.status);
+      update.status = s === 1 ? 1 : 0;
+    }
 
     const subj = await Subject.findByIdAndUpdate(id, update, { new: true });
     if (!subj) return res.status(404).json({ message: 'Subject not found' });

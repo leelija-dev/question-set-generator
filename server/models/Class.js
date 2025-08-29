@@ -4,6 +4,7 @@ const ClassSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
     boardId: { type: mongoose.Schema.Types.ObjectId, ref: 'Board', required: true, index: true },
+    status: { type: Number, enum: [0, 1], default: 1, index: true },
     metrics: {
       subjects: { type: Number, default: 0 },
       sections: { type: Number, default: 0 },

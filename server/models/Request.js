@@ -4,6 +4,7 @@ const RequestSchema = new mongoose.Schema(
   {
     type: { type: String, enum: ['board', 'class', 'subject'], required: true },
     status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending', index: true },
+    activeStatus: { type: Number, enum: [0, 1], default: 1, index: true },
     payload: { type: Object, default: {} },
     customer: {
       name: { type: String, trim: true },

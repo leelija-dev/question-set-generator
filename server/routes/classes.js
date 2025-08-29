@@ -1,5 +1,6 @@
 import express from 'express';
 import ClassModel from '../models/Class.js';
+import Subject from '../models/Subject.js';
 
 const router = express.Router();
 
@@ -24,7 +25,8 @@ router.post('/', async (req, res) => {
     if (!name || !boardId) return res.status(400).json({ message: 'name and boardId are required' });
     const exists = await ClassModel.findOne({ boardId, name: new RegExp(`^${name}$`, 'i') });
     if (exists) return res.status(409).json({ message: 'Class already exists for this board' });
-    const cls = await ClassModel.create({ name, boardId });
+    const status = [0, 1].includes(Number(req.body.status)) ? Number(req.body.status) : 1;
+    const cls = await ClassModel.create({ name, boardId, status });
     res.status(201).json(cls);
   } catch (e) {
     res.status(500).json({ message: 'Failed to create class' });
@@ -45,6 +47,10 @@ router.put('/:id', async (req, res) => {
       if (exists) return res.status(409).json({ message: 'Another class with same name exists in this board' });
       update.name = name;
     }
+    if (typeof req.body.status !== 'undefined') {
+      const s = Number(req.body.status);
+      update.status = s === 1 ? 1 : 0;
+    }
     const cls = await ClassModel.findByIdAndUpdate(id, update, { new: true });
     if (!cls) return res.status(404).json({ message: 'Class not found' });
     res.json(cls);
@@ -57,9 +63,13 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const del = await ClassModel.findByIdAndDelete(id);
-    if (!del) return res.status(404).json({ message: 'Class not found' });
-    res.json({ ok: true });
+    // Check exists first
+    const cls = await ClassModel.findById(id);
+    if (!cls) return res.status(404).json({ message: 'Class not found' });
+    // Cascade delete subjects under this class
+    await Subject.deleteMany({ classId: id });
+    await ClassModel.findByIdAndDelete(id);
+    res.json({ ok: true, cascaded: { subjects: true } });
   } catch (e) {
     res.status(500).json({ message: 'Failed to delete class' });
   }

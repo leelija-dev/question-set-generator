@@ -6,13 +6,17 @@ import Subject from '../models/Subject.js';
 
 const router = express.Router();
 
-// List requests with optional filters: type, status
+// List requests with optional filters: type, status, activeStatus
 router.get('/', async (req, res) => {
   try {
-    const { type, status } = req.query;
+    const { type, status, activeStatus } = req.query;
     const filter = {};
     if (type) filter.type = type;
     if (status) filter.status = status;
+    if (typeof activeStatus !== 'undefined') {
+      const s = Number(activeStatus);
+      if (s === 0 || s === 1) filter.activeStatus = s;
+    }
     const items = await Request.find(filter).sort({ createdAt: -1 });
     res.json(items);
   } catch (e) {
@@ -20,14 +24,15 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Create a new request
+// Create a new request (accept optional activeStatus 0/1)
 router.post('/', async (req, res) => {
   try {
     const { type, payload, customer } = req.body || {};
     if (!type || !['board', 'class', 'subject'].includes(type)) {
       return res.status(400).json({ message: 'Invalid type' });
     }
-    const item = await Request.create({ type, payload: payload || {}, customer: customer || {} });
+    const activeStatus = [0, 1].includes(Number(req.body?.activeStatus)) ? Number(req.body.activeStatus) : 1;
+    const item = await Request.create({ type, payload: payload || {}, customer: customer || {}, activeStatus });
     res.status(201).json(item);
   } catch (e) {
     res.status(500).json({ message: 'Failed to create request' });

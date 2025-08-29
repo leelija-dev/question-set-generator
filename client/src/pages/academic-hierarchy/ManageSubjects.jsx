@@ -147,6 +147,15 @@ const ManageSubjects = () => {
     setDeleteId(null); setDeleteName('')
   }
 
+  const toggleStatus = async (s) => {
+    const id = s._id || s.id
+    const next = s.status === 1 ? 0 : 1
+    try {
+      const updated = await SubjectsAPI.update(id, { status: next })
+      setSubjects(prev => prev.map(x => ((x._id || x.id) === id ? updated : x)))
+    } catch (_) {}
+  }
+
   // Animations
   const editEnter = useEnterAnimation(!!editingId)
   const deleteEnter = useEnterAnimation(!!deleteId)
@@ -224,13 +233,14 @@ const ManageSubjects = () => {
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Qs</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Overview</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
               <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-100">
             {pageItems.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-gray-500">No subjects found</td>
+                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">No subjects found</td>
               </tr>
             ) : (
               pageItems.map(s => (
@@ -250,7 +260,20 @@ const ManageSubjects = () => {
                     </button>
                   </td>
                   <td className="px-4 py-3 text-gray-600">{new Date(s.createdAt).toLocaleString()}</td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${s.status === 1 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'}`}>
+                      {s.status === 1 ? 'Active' : 'Inactive'}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 text-right space-x-2">
+                    <button
+                      onClick={() => toggleStatus(s)}
+                      title="Toggle Status"
+                      aria-label="Toggle Status"
+                      className="inline-flex items-center justify-center rounded-md border border-gray-300 p-1.5 text-gray-700 hover:bg-gray-50"
+                    >
+                      {s.status === 1 ? 'Deactivate' : 'Activate'}
+                    </button>
                     <button
                       onClick={() => startEdit(s)}
                       title="Edit"
@@ -345,6 +368,10 @@ const ManageSubjects = () => {
                 <div className="bg-gray-50 rounded-md p-4">
                   <p className="text-xs uppercase text-gray-500">Class</p>
                   <p className="text-base font-semibold text-gray-900">{classes.find(c => (c._id || c.id) === selectedClassId)?.name || '—'}</p>
+                </div>
+                <div className="bg-gray-50 rounded-md p-4">
+                  <p className="text-xs uppercase text-gray-500">Status</p>
+                  <p className="text-base font-semibold text-gray-900">{overviewSubject.status === 1 ? 'Active' : 'Inactive'}</p>
                 </div>
                 <div className="bg-gray-50 rounded-md p-4 md:col-span-2">
                   <p className="text-xs uppercase text-gray-500">Subject</p>

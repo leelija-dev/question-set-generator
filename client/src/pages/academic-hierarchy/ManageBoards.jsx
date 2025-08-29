@@ -35,6 +35,20 @@ const ManageBoards = () => {
   // Overview modal state
   const [overviewId, setOverviewId] = useState(null)
 
+  // Load counts when overview opens
+  useEffect(() => {
+    const loadCounts = async () => {
+      if (!overviewId) return
+      try {
+        const m = await BoardsAPI.metrics(overviewId)
+        setBoards(prev => prev.map(b => ((b._id || b.id) === overviewId ? { ...b, metrics: m } : b)))
+      } catch (_) {
+        setBoards(prev => prev.map(b => ((b._id || b.id) === overviewId ? { ...b, metrics: { classes: 0, subjects: 0, institutions: 0 } } : b)))
+      }
+    }
+    loadCounts()
+  }, [overviewId])
+
   // Load boards from API on mount
   useEffect(() => {
     const load = async () => {
@@ -206,13 +220,14 @@ const ManageBoards = () => {
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Overview</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
               <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-100">
             {pageItems.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-gray-500">No boards found</td>
+                <td colSpan={5} className="px-4 py-8 text-center text-gray-500">No boards found</td>
               </tr>
             ) : (
               pageItems.map(b => (
@@ -231,7 +246,27 @@ const ManageBoards = () => {
                       <span>View</span>
                     </button>
                   </td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${b.status === 1 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'}`}>
+                      {b.status === 1 ? 'Active' : 'Inactive'}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 text-right space-x-2">
+                    <button
+                      onClick={async () => {
+                        const id = b._id || b.id
+                        const next = b.status === 1 ? 0 : 1
+                        try {
+                          const updated = await BoardsAPI.update(id, { status: next })
+                          setBoards(prev => prev.map(x => ((x._id || x.id) === id ? updated : x)))
+                        } catch (_) {}
+                      }}
+                      title="Toggle Status"
+                      aria-label="Toggle Status"
+                      className="inline-flex items-center justify-center rounded-md border border-gray-300 p-1.5 text-gray-700 hover:bg-gray-50"
+                    >
+                      {b.status === 1 ? 'Deactivate' : 'Activate'}
+                    </button>
                     <button
                       onClick={() => startEdit(b)}
                       title="Edit"
@@ -328,6 +363,10 @@ const ManageBoards = () => {
                   <p className="text-xs uppercase text-gray-500">Board</p>
                   <p className="text-base font-semibold text-gray-900">{overviewBoard.name}</p>
                   <p className="text-sm text-gray-600">Code: <span className="font-medium text-gray-800">{overviewBoard.code}</span></p>
+                </div>
+                <div className="bg-gray-50 rounded-md p-4">
+                  <p className="text-xs uppercase text-gray-500">Status</p>
+                  <p className="text-base font-semibold text-gray-900">{overviewBoard.status === 1 ? 'Active' : 'Inactive'}</p>
                 </div>
                 <div className="bg-gray-50 rounded-md p-4">
                   <p className="text-xs uppercase text-gray-500">Created</p>

@@ -47,7 +47,7 @@ const ManageClasses = () => {
     if (!selectedBoardId) { setClasses([]); return }
     const load = async () => {
       try {
-        const list = await ClassesAPI.list(selectedBoardId)
+        const list = await ClassesAPI.list({ boardId: selectedBoardId })
         setClasses(Array.isArray(list) ? list : [])
       } catch (e) {
         setClasses([])
@@ -103,6 +103,14 @@ const ManageClasses = () => {
 
   const askDelete = (c) => { setDeleteId(c._id || c.id); setDeleteName(c.name) }
   const cancelDelete = () => { setDeleteId(null); setDeleteName('') }
+  const toggleStatus = async (c) => {
+    const id = c._id || c.id
+    const next = c.status === 1 ? 0 : 1
+    try {
+      const updated = await ClassesAPI.update(id, { status: next })
+      setClasses(prev => prev.map(x => ((x._id || x.id) === id ? updated : x)))
+    } catch (_) {}
+  }
   const confirmDelete = async () => {
     if (!deleteId) return
     try {
@@ -203,13 +211,14 @@ const ManageClasses = () => {
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Overview</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
               <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-100">
             {pageItems.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-gray-500">No classes found</td>
+                <td colSpan={5} className="px-4 py-8 text-center text-gray-500">No classes found</td>
               </tr>
             ) : (
               pageItems.map(c => (
@@ -228,7 +237,20 @@ const ManageClasses = () => {
                       <span>View</span>
                     </button>
                   </td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${c.status === 1 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'}`}>
+                      {c.status === 1 ? 'Active' : 'Inactive'}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 text-right space-x-2">
+                    <button
+                      onClick={() => toggleStatus(c)}
+                      title="Toggle Status"
+                      aria-label="Toggle Status"
+                      className="inline-flex items-center justify-center rounded-md border border-gray-300 p-1.5 text-gray-700 hover:bg-gray-50"
+                    >
+                      {c.status === 1 ? 'Deactivate' : 'Activate'}
+                    </button>
                     <button
                       onClick={() => startEdit(c)}
                       title="Edit"
@@ -324,6 +346,10 @@ const ManageClasses = () => {
                 <div className="bg-gray-50 rounded-md p-4">
                   <p className="text-xs uppercase text-gray-500">Class</p>
                   <p className="text-base font-semibold text-gray-900">{overviewClass.name}</p>
+                </div>
+                <div className="bg-gray-50 rounded-md p-4">
+                  <p className="text-xs uppercase text-gray-500">Status</p>
+                  <p className="text-base font-semibold text-gray-900">{overviewClass.status === 1 ? 'Active' : 'Inactive'}</p>
                 </div>
                 <div className="bg-gray-50 rounded-md p-4">
                   <p className="text-xs uppercase text-gray-500">Created</p>

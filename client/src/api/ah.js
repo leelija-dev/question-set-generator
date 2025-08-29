@@ -17,15 +17,27 @@ async function http(path, options = {}) {
 
 // Boards
 export const BoardsAPI = {
-  list: () => http('/boards'),
+  list: (params = {}) => {
+    const q = new URLSearchParams();
+    if (params.status !== undefined && params.status !== null && params.status !== '') q.set('status', params.status);
+    const qs = q.toString();
+    return http(`/boards${qs ? `?${qs}` : ''}`);
+  },
   create: (data) => http('/boards', { method: 'POST', body: JSON.stringify(data) }),
   update: (id, data) => http(`/boards/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   remove: (id) => http(`/boards/${id}`, { method: 'DELETE' }),
+  metrics: (id) => http(`/boards/${id}/metrics`),
 };
 
 // Classes
 export const ClassesAPI = {
-  list: (boardId) => http(`/classes${boardId ? `?boardId=${encodeURIComponent(boardId)}` : ''}`),
+  list: (params = {}) => {
+    const q = new URLSearchParams();
+    if (params.boardId) q.set('boardId', params.boardId);
+    if (params.status !== undefined && params.status !== null && params.status !== '') q.set('status', params.status);
+    const qs = q.toString();
+    return http(`/classes${qs ? `?${qs}` : ''}`);
+  },
   create: (data) => http('/classes', { method: 'POST', body: JSON.stringify(data) }),
   update: (id, data) => http(`/classes/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   remove: (id) => http(`/classes/${id}`, { method: 'DELETE' }),
@@ -37,6 +49,7 @@ export const SubjectsAPI = {
     const q = new URLSearchParams();
     if (params.boardId) q.set('boardId', params.boardId);
     if (params.classId) q.set('classId', params.classId);
+    if (params.status !== undefined && params.status !== null && params.status !== '') q.set('status', params.status);
     const qs = q.toString();
     return http(`/subjects${qs ? `?${qs}` : ''}`);
   },
@@ -51,6 +64,7 @@ export const RequestsAPI = {
     const q = new URLSearchParams();
     if (params.type && params.type !== 'all') q.set('type', params.type);
     if (params.status && params.status !== 'all') q.set('status', params.status);
+    if (params.activeStatus !== undefined && params.activeStatus !== null && params.activeStatus !== '') q.set('activeStatus', params.activeStatus);
     const qs = q.toString();
     return http(`/requests${qs ? `?${qs}` : ''}`);
   },
