@@ -3,12 +3,20 @@ import React, { useState } from 'react';
 function SidebarLinkGroup({
   children,
   activecondition,
+  open: controlledOpen,
+  onToggle,
 }) {
 
-  const [open, setOpen] = useState(activecondition);
+  const [internalOpen, setInternalOpen] = useState(activecondition);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
 
   const handleClick = () => {
-    setOpen(!open);
+    if (isControlled) {
+      onToggle && onToggle();
+    } else {
+      setInternalOpen(!open);
+    }
   }
 
   return (

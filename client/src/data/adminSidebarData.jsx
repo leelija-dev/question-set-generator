@@ -1,35 +1,6 @@
- // Existing Dashboard component
-// Placeholder components (replace with actual components)
-// import Packages from "./pages/admin/Packages";
-// import Transactions from "./pages/admin/Transactions";
-// import ActiveSubscriptions from "./pages/admin/ActiveSubscriptions";
-// import BillingSettings from "./pages/admin/BillingSettings";
-// import ManageBoards from "./pages/admin/ManageBoards";
-// import ManageClasses from "./pages/admin/ManageClasses";
-// import ManageSubjects from "./pages/admin/ManageSubjects";
-// import Requests from "./pages/admin/Requests";
-// import AllQuestions from "./pages/admin/AllQuestions";
-// import AddQuestion from "./pages/admin/AddQuestion";
-// import ImportQuestions from "./pages/admin/ImportQuestions";
-// import QuestionApproval from "./pages/admin/QuestionApproval";
-// import CustomerList from "./pages/admin/CustomerList";
-// import CustomerUsage from "./pages/admin/CustomerUsage";
-// import GeneratedSets from "./pages/admin/GeneratedSets";
-// import DifficultyDistribution from "./pages/admin/DifficultyDistribution";
-// import ExportLogs from "./pages/admin/ExportLogs";
-// import BoardAPIs from "./pages/admin/BoardAPIs";
-// import ThirdPartyServices from "./pages/admin/ThirdPartyServices";
-// import AdminProfile from "./pages/admin/AdminProfile";
-// import RolesPermissions from "./pages/admin/RolesPermissions";
-// import SystemConfig from "./pages/admin/SystemConfig";
-// import CustomerTickets from "./pages/admin/CustomerTickets";
-// import KnowledgeBase from "./pages/admin/KnowledgeBase";
-// import Overview from "./pages/admin/Overview";
-// import CustomerAnalytics from "./pages/admin/CustomerAnalytics";
-
 import Dashboard from "../pages/Dashboard";
 
-export const adminSidebarData = {
+const adminSidebarData = {
   dashboard: {
     title: "Dashboard",
     path: "dashboard",
@@ -43,7 +14,7 @@ export const adminSidebarData = {
       }
     },
   },
- subscriptionBilling: {
+  subscriptionBilling: {
     title: "Subscription & Billing",
     path: "subscription-billing",
     component: null,
@@ -242,5 +213,4 @@ export const adminSidebarData = {
   },
 };
 
-// Placeholder component for parent routes without specific components
-const Placeholder = ({ title }) => <h2>{title}</h2>;
+export default adminSidebarData;

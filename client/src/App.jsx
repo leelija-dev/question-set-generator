@@ -20,7 +20,9 @@ import Settings from "./pages/Settings";
 
 // Admin Sidebar + generator
 import { generateRoutes } from "./utils/generateRoutes";
-import { adminSidebarData } from "./data/adminSidebarData";
+import adminSidebarData from "./data/adminSidebarData";
+
+
 
 
 function App() {

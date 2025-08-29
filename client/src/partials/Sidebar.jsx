@@ -192,6 +192,14 @@ function Sidebar({ sidebarOpen, setSidebarOpen, variant = "default" }) {
     storedSidebarExpanded === null ? false : storedSidebarExpanded === "true"
   );
 
+  // Track which top-level group is open (mutually exclusive)
+  const [openGroup, setOpenGroup] = useState(() => {
+    const entry = Object.entries(adminSidebar).find(([_, item]) =>
+      pathname.includes(`/admin${item.path}`)
+    );
+    return entry ? entry[0] : null;
+  });
+
   // Close on click outside
   useEffect(() => {
     const clickHandler = ({ target }) => {
@@ -226,6 +234,14 @@ function Sidebar({ sidebarOpen, setSidebarOpen, variant = "default" }) {
       document.querySelector("body").classList.remove("sidebar-expanded");
     }
   }, [sidebarExpanded]);
+
+  // Keep open group in sync with route changes
+  useEffect(() => {
+    const entry = Object.entries(adminSidebar).find(([_, item]) =>
+      pathname.includes(`/admin${item.path}`)
+    );
+    setOpenGroup(entry ? entry[0] : null);
+  }, [pathname]);
 
   // Define SVG icons for each menu item
   const icons = {
@@ -272,7 +288,7 @@ function Sidebar({ sidebarOpen, setSidebarOpen, variant = "default" }) {
         height="16"
         viewBox="0 0 16 16"
       >
-        <path d="M6.753 2.659a1 1 0 0 0-1.506-1.317L2.451 4.537l-.744-.744A1 1 0 1 0 .293 5.207l1.5 1.5a1 1 0 0 0 1.46-.048l3.5-4ZM6.753 10.659a1 1 0 0 0-1.506-1.317l-2.796 3.195-.744-.744a1 1 0 0 0-1.414 1.414l1.5 1.5a1 1 0 0 0 1.46-.049l3.5-4ZM8 4.5a1 1 0 0 1 1-1h6a1 1 0 1 1 0 2H9a1 1 0 0 1-1-1ZM9 11.5a1 1 0 1 0 0 2h6a1 1 0 1 0 0-2H9Z" />
+        <path d="M6.753 2.659a1 1 0 0 0-1.506-1.317L2.451 4.537l-.744-.744A1 1 0 1 0 .293 5.207l1.5 1.5a1 1 0 0 0 1.46-.048l3.5-4ZM6.753 10.659a1 1 0 0 0-1.506-1.317l-2.796 3.195-.744-.744a1 1 0 0 0-1.414 1.414l1.5 1.5a1 1 0 0 0 1.46-.049l3.5-4ZM8 4.5a1 1 0 1 1 1-1h6a1 1 0 1 1 0 2H9a1 1 0 0 1-1-1ZM9 11.5a1 1 0 1 0 0 2h6a1 1 0 1 0 0-2H9Z" />
       </svg>
     ),
     customers: (
@@ -402,6 +418,10 @@ function Sidebar({ sidebarOpen, setSidebarOpen, variant = "default" }) {
                 <SidebarLinkGroup
                   key={key}
                   activecondition={pathname.includes(`/admin${item.path}`)}
+                  open={openGroup === key}
+                  onToggle={() =>
+                    setOpenGroup((prev) => (prev === key ? null : key))
+                  }
                 >
                   {(handleClick, open) => (
                     <React.Fragment>
