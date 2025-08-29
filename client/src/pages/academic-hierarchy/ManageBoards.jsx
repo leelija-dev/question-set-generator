@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { BoardsAPI } from '../../api/ah'
+import { useToast } from '../../components/Toast'
 
 // Simple enter animation helper to animate modals
 const useEnterAnimation = (open) => {
@@ -21,6 +22,7 @@ const ManageBoards = () => {
   const [name, setName] = useState('')
   const [search, setSearch] = useState('')
   const [error, setError] = useState('')
+  const toast = useToast()
 
   const [editingId, setEditingId] = useState(null)
   const [editingName, setEditingName] = useState('')
@@ -92,8 +94,10 @@ const ManageBoards = () => {
       const created = await BoardsAPI.create({ name: trimmed })
       setBoards(prev => [created, ...prev])
       setName('')
+      toast.success('Board created')
     } catch (err) {
       setError('Board already exists or failed to create')
+      toast.error('Board already exists or failed to create')
     }
   }
 
@@ -117,8 +121,10 @@ const ManageBoards = () => {
       setEditingId(null)
       setEditingName('')
       setError('')
+      toast.success('Board updated')
     } catch (err) {
       setError('Another board with this name already exists or update failed')
+      toast.error('Update failed')
     }
   }
 
@@ -137,8 +143,10 @@ const ManageBoards = () => {
     try {
       await BoardsAPI.remove(deleteId)
       setBoards(prev => prev.filter(b => (b._id || b.id) !== deleteId))
+      toast.success('Board deleted')
     } catch (e) {
       // no-op; optionally show error
+      toast.error('Failed to delete board')
     }
     setDeleteId(null)
     setDeleteName('')
@@ -259,7 +267,8 @@ const ManageBoards = () => {
                         try {
                           const updated = await BoardsAPI.update(id, { status: next })
                           setBoards(prev => prev.map(x => ((x._id || x.id) === id ? updated : x)))
-                        } catch (_) {}
+                          toast.info(`Board ${next === 1 ? 'activated' : 'deactivated'}`)
+                        } catch (_) { toast.error('Failed to update status') }
                       }}
                       title="Toggle Status"
                       aria-label="Toggle Status"

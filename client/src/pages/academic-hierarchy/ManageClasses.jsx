@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { BoardsAPI, ClassesAPI, SubjectsAPI } from '../../api/ah'
+import { useToast } from '../../components/Toast'
 
 const ManageClasses = () => {
   const [boards, setBoards] = useState([])
   const [selectedBoardId, setSelectedBoardId] = useState('')
+  const toast = useToast()
 
   // classes list for selected board
   const [classes, setClasses] = useState([])
@@ -101,8 +103,10 @@ const ManageClasses = () => {
       const created = await ClassesAPI.create({ name: trimmed, boardId: selectedBoardId })
       setClasses(prev => [created, ...prev])
       setName('')
+      toast.success('Class created')
     } catch (err) {
       setError('Class already exists for this board or failed to create')
+      toast.error('Class already exists for this board or failed to create')
     }
   }
 
@@ -115,8 +119,10 @@ const ManageClasses = () => {
       const updated = await ClassesAPI.update(editingId, { name: trimmed })
       setClasses(prev => prev.map(c => ((c._id || c.id) === editingId ? updated : c)))
       setEditingId(null); setEditingName(''); setError('')
+      toast.success('Class updated')
     } catch (err) {
       setError('Another class with this name already exists or update failed')
+      toast.error('Update failed')
     }
   }
 
@@ -128,14 +134,20 @@ const ManageClasses = () => {
     try {
       const updated = await ClassesAPI.update(id, { status: next })
       setClasses(prev => prev.map(x => ((x._id || x.id) === id ? updated : x)))
-    } catch (_) {}
+      toast.info(`Class ${next === 1 ? 'activated' : 'deactivated'}`)
+    } catch (_) {
+      toast.error('Failed to update status')
+    }
   }
   const confirmDelete = async () => {
     if (!deleteId) return
     try {
       await ClassesAPI.remove(deleteId)
       setClasses(prev => prev.filter(c => (c._id || c.id) !== deleteId))
-    } catch (_) {}
+      toast.success('Class deleted')
+    } catch (_) {
+      toast.error('Failed to delete class')
+    }
     setDeleteId(null); setDeleteName('')
   }
 

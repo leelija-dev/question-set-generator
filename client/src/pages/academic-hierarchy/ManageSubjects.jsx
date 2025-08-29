@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { BoardsAPI, ClassesAPI, SubjectsAPI } from '../../api/ah'
+import { useToast } from '../../components/Toast'
 
 // Simple enter animation helper to animate modals
 const useEnterAnimation = (open) => {
@@ -19,6 +20,7 @@ const useEnterAnimation = (open) => {
 const ManageSubjects = () => {
   const [boards, setBoards] = useState([])
   const [selectedBoardId, setSelectedBoardId] = useState('')
+  const toast = useToast()
 
   // classes for selected board
   const [classes, setClasses] = useState([])
@@ -137,8 +139,10 @@ const ManageSubjects = () => {
         setSubjects(prev => [created, ...prev])
       }
       setAddOpen(false)
+      toast.success('Subject created')
     } catch (_) {
       setAddError('Subject already exists in this class or failed to create')
+      toast.error('Subject already exists in this class or failed to create')
     }
   }
 
@@ -151,8 +155,10 @@ const ManageSubjects = () => {
       const updated = await SubjectsAPI.update(editingId, { name: trimmed })
       setSubjects(prev => prev.map(s => ((s._id || s.id) === editingId ? updated : s)))
       setEditingId(null); setEditingName(''); setError('')
+      toast.success('Subject updated')
     } catch (err) {
       setError('Another subject with this name already exists or update failed')
+      toast.error('Update failed')
     }
   }
 
@@ -163,7 +169,10 @@ const ManageSubjects = () => {
     try {
       await SubjectsAPI.remove(deleteId)
       setSubjects(prev => prev.filter(s => (s._id || s.id) !== deleteId))
-    } catch (_) {}
+      toast.success('Subject deleted')
+    } catch (_) {
+      toast.error('Failed to delete subject')
+    }
     setDeleteId(null); setDeleteName('')
   }
 
@@ -173,7 +182,10 @@ const ManageSubjects = () => {
     try {
       const updated = await SubjectsAPI.update(id, { status: next })
       setSubjects(prev => prev.map(x => ((x._id || x.id) === id ? updated : x)))
-    } catch (_) {}
+      toast.info(`Subject ${next === 1 ? 'activated' : 'deactivated'}`)
+    } catch (_) {
+      toast.error('Failed to update status')
+    }
   }
 
   // Animations

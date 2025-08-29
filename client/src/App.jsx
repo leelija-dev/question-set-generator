@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import "./css/style.css";
 import "./charts/ChartjsConfig";
+import { ToastProvider } from "./components/Toast";
 
 // Pages
 import Login from "./pages/customer/Login";
@@ -24,35 +25,36 @@ import adminSidebarData from "./data/adminSidebarData";
 
 
 
-
 function App() {
   return (
-    <Routes>
-      {/* Root redirect */}
-      <Route path="/" element={<Navigate to="/login" />} />
+    <ToastProvider>
+      <Routes>
+       {/* Root redirect */}
+       <Route path="/" element={<Navigate to="/login" />} />
 
-      {/* Public Pages */}
-      <Route path="/login" element={<Login />} />
-      <Route path="/admin-login" element={<AdminLogin />} />
-      <Route path="/forgot-password" element={<ForgotPassword />} />
-      <Route path="/reset-password/:token" element={<ResetPassword />} />
+       {/* Public Pages */}
+       <Route path="/login" element={<Login />} />
+       <Route path="/admin-login" element={<AdminLogin />} />
+       <Route path="/forgot-password" element={<ForgotPassword />} />
+       <Route path="/reset-password/:token" element={<ResetPassword />} />
 
-      {/* Customer Protected Routes */}
-      <Route element={<ProtectedRoute><GlobalLayout /></ProtectedRoute>}>
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/profile" element={<Profile />} />
-        <Route path="/settings" element={<Settings />} />
-      </Route>
+       {/* Customer Protected Routes */}
+       <Route element={<ProtectedRoute><GlobalLayout /></ProtectedRoute>}>
+         <Route path="/dashboard" element={<Dashboard />} />
+         <Route path="/profile" element={<Profile />} />
+         <Route path="/settings" element={<Settings />} />
+       </Route>
 
-      {/* Admin Protected Routes */}
-      <Route path="/admin" element={<AdminProtectedRoute><GlobalLayout /></AdminProtectedRoute>}>
-        <Route index element={<Navigate to="dashboard" />} /> {/* Redirect /admin to /admin/dashboard */}
-        {generateRoutes(adminSidebarData)}
-      </Route>
+       {/* Admin Protected Routes */}
+       <Route path="/admin" element={<AdminProtectedRoute><GlobalLayout /></AdminProtectedRoute>}>
+         <Route index element={<Navigate to="dashboard" />} /> {/* Redirect /admin to /admin/dashboard */}
+         {generateRoutes(adminSidebarData)}
+       </Route>
 
-      {/* Catch-all */}
-      <Route path="*" element={<Navigate to="/login" />} />
-    </Routes>
+       {/* Catch-all */}
+       <Route path="*" element={<Navigate to="/login" />} />
+      </Routes>
+    </ToastProvider>
   );
 }
 
