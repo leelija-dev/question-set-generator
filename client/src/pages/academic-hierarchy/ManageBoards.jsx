@@ -285,9 +285,27 @@ const ManageBoards = () => {
                       <span>View</span>
                     </button>
                   </td>
-                  <td className="px-4 py-3 text-right space-x-3">
-                    <button onClick={() => startEdit(b)} className="text-sm text-indigo-600 hover:text-indigo-700">Edit</button>
-                    <button onClick={() => askDelete(b)} className="text-sm text-red-600 hover:text-red-700">Delete</button>
+                  <td className="px-4 py-3 text-right space-x-2">
+                    <button
+                      onClick={() => startEdit(b)}
+                      title="Edit"
+                      aria-label="Edit"
+                      className="inline-flex items-center justify-center rounded-md border border-gray-300 p-1.5 text-gray-700 hover:bg-gray-50 hover:text-indigo-700"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                        <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5.5v-.42l8.6-8.6.42.42-8.6 8.6zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.82 1.82 3.75 3.75 1.82-1.82z" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => askDelete(b)}
+                      title="Delete"
+                      aria-label="Delete"
+                      className="inline-flex items-center justify-center rounded-md border border-gray-300 p-1.5 text-gray-700 hover:bg-red-50 hover:text-red-700"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                        <path d="M6 7h12v2H6V7zm1 3h10l-1 10H8L7 10zm3-5h4l1 1H9l1-1z" />
+                      </svg>
+                    </button>
                   </td>
                 </tr>
               ))
