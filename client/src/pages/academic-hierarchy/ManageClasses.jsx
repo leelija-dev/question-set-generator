@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { BoardsAPI, ClassesAPI } from '../../api/ah'
+import { BoardsAPI, ClassesAPI, SubjectsAPI } from '../../api/ah'
 
 const ManageClasses = () => {
   const [boards, setBoards] = useState([])
@@ -24,9 +24,28 @@ const ManageClasses = () => {
 
   // Overview state
   const [overviewId, setOverviewId] = useState(null)
-  const openOverview = (c) => setOverviewId(c._id || c.id)
+  const [overviewSubjects, setOverviewSubjects] = useState(null)
+  const openOverview = (c) => { setOverviewSubjects(null); setOverviewId(c._id || c.id) }
   const closeOverview = () => setOverviewId(null)
   const overviewClass = useMemo(() => classes.find(c => (c._id || c.id) === overviewId) || null, [classes, overviewId])
+  const overviewBoard = useMemo(() => {
+    if (!overviewClass) return null
+    return boards.find(b => (b._id || b.id) === (overviewClass.boardId || overviewClass.board)) || null
+  }, [boards, overviewClass])
+
+  // Load subjects count when overview opens
+  useEffect(() => {
+    const load = async () => {
+      if (!overviewId) return
+      try {
+        const list = await SubjectsAPI.list({ classId: overviewId })
+        setOverviewSubjects(Array.isArray(list) ? list.length : 0)
+      } catch (_) {
+        setOverviewSubjects(0)
+      }
+    }
+    load()
+  }, [overviewId])
 
   // Load boards on mount
   useEffect(() => {
@@ -348,6 +367,10 @@ const ManageClasses = () => {
                   <p className="text-base font-semibold text-gray-900">{overviewClass.name}</p>
                 </div>
                 <div className="bg-gray-50 rounded-md p-4">
+                  <p className="text-xs uppercase text-gray-500">Board</p>
+                  <p className="text-base font-semibold text-gray-900">{overviewBoard?.name || '—'}</p>
+                </div>
+                <div className="bg-gray-50 rounded-md p-4">
                   <p className="text-xs uppercase text-gray-500">Status</p>
                   <p className="text-base font-semibold text-gray-900">{overviewClass.status === 1 ? 'Active' : 'Inactive'}</p>
                 </div>
@@ -358,15 +381,7 @@ const ManageClasses = () => {
                 </div>
                 <div className="bg-gray-50 rounded-md p-4">
                   <p className="text-xs uppercase text-gray-500">Subjects</p>
-                  <p className="text-2xl font-bold text-gray-900">{overviewClass.metrics?.subjects ?? 0}</p>
-                </div>
-                <div className="bg-gray-50 rounded-md p-4">
-                  <p className="text-xs uppercase text-gray-500">Sections</p>
-                  <p className="text-2xl font-bold text-gray-900">{overviewClass.metrics?.sections ?? 0}</p>
-                </div>
-                <div className="bg-gray-50 rounded-md p-4">
-                  <p className="text-xs uppercase text-gray-500">Students</p>
-                  <p className="text-2xl font-bold text-gray-900">{overviewClass.metrics?.students ?? 0}</p>
+                  <p className="text-2xl font-bold text-gray-900">{(overviewSubjects ?? overviewClass.metrics?.subjects ?? 0)}</p>
                 </div>
                 <div className="bg-gray-50 rounded-md p-4">
                   <p className="text-xs uppercase text-gray-500">ID</p>

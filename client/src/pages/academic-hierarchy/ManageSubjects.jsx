@@ -28,7 +28,6 @@ const ManageSubjects = () => {
 
   // UI state
   const [selectedClassId, setSelectedClassId] = useState('')
-  const [name, setName] = useState('')
   const [search, setSearch] = useState('')
   const [error, setError] = useState('')
 
@@ -40,6 +39,14 @@ const ManageSubjects = () => {
 
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
+
+  // Add Subject modal state
+  const [addOpen, setAddOpen] = useState(false)
+  const [addBoardId, setAddBoardId] = useState('')
+  const [addClasses, setAddClasses] = useState([])
+  const [addClassId, setAddClassId] = useState('')
+  const [addName, setAddName] = useState('')
+  const [addError, setAddError] = useState('')
 
   // Overview state
   const [overviewId, setOverviewId] = useState(null)
@@ -108,17 +115,30 @@ const ManageSubjects = () => {
   useEffect(() => { setPage(1) }, [selectedBoardId, selectedClassId, search, pageSize])
 
   // Actions
-  const handleAdd = async (e) => {
-    e.preventDefault()
-    setError('')
-    const trimmed = name.trim()
-    if (!trimmed) { setError('Subject name is required'); return }
+  const openAdd = () => {
+    setAddError('')
+    const b = selectedBoardId || (boards[0]?._id || boards[0]?.id) || ''
+    setAddBoardId(b)
+    setAddClassId('')
+    setAddName('')
+    setAddOpen(true)
+  }
+  const closeAdd = () => { setAddOpen(false); setAddError('') }
+  const handleCreate = async () => {
+    setAddError('')
+    const trimmed = addName.trim()
+    if (!addBoardId) { setAddError('Please select a board'); return }
+    if (!addClassId) { setAddError('Please select a class'); return }
+    if (!trimmed) { setAddError('Subject name is required'); return }
     try {
-      const created = await SubjectsAPI.create({ name: trimmed, boardId: selectedBoardId, classId: selectedClassId })
-      setSubjects(prev => [created, ...prev])
-      setName('')
-    } catch (err) {
-      setError('Subject already exists in this class or failed to create')
+      const created = await SubjectsAPI.create({ name: trimmed, boardId: addBoardId, classId: addClassId })
+      // If created under current filters, add to list
+      if (addBoardId === selectedBoardId && addClassId === selectedClassId) {
+        setSubjects(prev => [created, ...prev])
+      }
+      setAddOpen(false)
+    } catch (_) {
+      setAddError('Subject already exists in this class or failed to create')
     }
   }
 
@@ -160,6 +180,23 @@ const ManageSubjects = () => {
   const editEnter = useEnterAnimation(!!editingId)
   const deleteEnter = useEnterAnimation(!!deleteId)
   const overviewEnter = useEnterAnimation(!!overviewId)
+  const addEnter = useEnterAnimation(!!addOpen)
+
+  // Load classes for Add modal when modal board changes
+  useEffect(() => {
+    const load = async () => {
+      if (!addOpen || !addBoardId) { setAddClasses([]); setAddClassId(''); return }
+      try {
+        const list = await ClassesAPI.list({ boardId: addBoardId })
+        setAddClasses(Array.isArray(list) ? list : [])
+        if (Array.isArray(list) && list.length) setAddClassId(list[0]._id || list[0].id)
+        else setAddClassId('')
+      } catch {
+        setAddClasses([]); setAddClassId('')
+      }
+    }
+    load()
+  }, [addOpen, addBoardId])
 
   const goPrev = () => setPage(p => Math.max(1, p - 1))
   const goNext = () => setPage(p => Math.min(totalPages, p + 1))
@@ -194,18 +231,10 @@ const ManageSubjects = () => {
         </div>
       </div>
 
-      {/* Add subject */}
-      <form onSubmit={handleAdd} className="flex items-end gap-3">
-        <div className="flex-1">
-          <label className="block text-sm text-gray-600 mb-1">New Subject Name</label>
-          <input value={name} onChange={e => setName(e.target.value)} className="w-full rounded-md border-gray-300" placeholder="e.g., Mathematics" />
-        </div>
-        <div>
-          <label className="block text-sm text-transparent mb-1">.</label>
-          <button type="submit" className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700">Add Subject</button>
-        </div>
-      </form>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {/* Add Subject */}
+      <div>
+        <button onClick={openAdd} className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700">Add Subject</button>
+      </div>
 
       {/* Stats and page size */}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -291,7 +320,7 @@ const ManageSubjects = () => {
                       className="inline-flex items-center justify-center rounded-md border border-gray-300 p-1.5 text-gray-700 hover:bg-red-50 hover:text-red-700"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
-                        <path d="M6 7h12v2H6V7zm1 3h10l-1 10H8L7 10zm3-5h4l1 1H9l1-1z" />
+                        <path d="M6 7h12v2H6V7zm1 3h10v2H7v-2zm1 3h10v2H8v-2zm1 3h10v2H9v-2z" />
                       </svg>
                     </button>
                   </td>
@@ -401,6 +430,50 @@ const ManageSubjects = () => {
               </div>
               <div className="px-5 py-4 border-t border-gray-200 flex items-center justify-end">
                 <button onClick={closeOverview} className="px-4 py-2 text-sm rounded-md border border-gray-300">Close</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Modal */}
+      {addOpen && (
+        <div className="fixed inset-0 z-40">
+          <div className={`absolute inset-0 bg-black/40 transition-opacity duration-200 ${addEnter ? 'opacity-100' : 'opacity-0'}`} onClick={closeAdd} />
+          <div className="absolute inset-0 flex items-center justify-center p-4">
+            <div className={`w-full max-w-lg rounded-lg bg-white shadow-xl border border-gray-200 transition-all duration-200 ${addEnter ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-2'}`}>
+              <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">Add Subject</h3>
+                <button onClick={closeAdd} className="text-gray-500 hover:text-gray-700" aria-label="Close">✕</button>
+              </div>
+              <div className="px-5 py-5 space-y-4">
+                <label className="block">
+                  <span className="text-sm text-gray-600">Board</span>
+                  <select value={addBoardId} onChange={e => setAddBoardId(e.target.value)} className="mt-1 w-full rounded-md border-gray-300">
+                    <option value="" disabled>Select board</option>
+                    {boards.map(b => (
+                      <option key={b._id || b.id} value={b._id || b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="text-sm text-gray-600">Class</span>
+                  <select value={addClassId} onChange={e => setAddClassId(e.target.value)} className="mt-1 w-full rounded-md border-gray-300" disabled={!addBoardId}>
+                    <option value="" disabled>{addBoardId ? 'Select class' : 'Select board first'}</option>
+                    {addClasses.map(c => (
+                      <option key={c._id || c.id} value={c._id || c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="text-sm text-gray-600">Subject Name</span>
+                  <input value={addName} onChange={e => setAddName(e.target.value)} className="mt-1 w-full rounded-md border-gray-300" placeholder="e.g., Mathematics" />
+                </label>
+                {addError && <p className="text-sm text-red-600">{addError}</p>}
+              </div>
+              <div className="px-5 py-4 border-t border-gray-200 flex items-center justify-end gap-2">
+                <button onClick={closeAdd} className="px-4 py-2 text-sm rounded-md border border-gray-300">Cancel</button>
+                <button onClick={handleCreate} className="px-4 py-2 text-sm rounded-md bg-indigo-600 text-white hover:bg-indigo-700">Create</button>
               </div>
             </div>
           </div>
