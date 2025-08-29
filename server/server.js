@@ -6,6 +6,10 @@ import dotenv from "dotenv";
 // Import routes
 import adminRoutes from "./routes/adminAuth.js";
 import customerRoutes from "./routes/customerAuth.js";
+import boardsRoutes from "./routes/boards.js";
+import classesRoutes from "./routes/classes.js";
+import subjectsRoutes from "./routes/subjects.js";
+import requestsRoutes from "./routes/requests.js";
 
 dotenv.config();
 const app = express();
@@ -44,6 +48,10 @@ mongoose.connection.once("open", createDefaultAdmin);
 // ===== Use Routes =====
 app.use("/api/admin", adminRoutes);
 app.use("/api/customer", customerRoutes);
+app.use("/api/boards", boardsRoutes);
+app.use("/api/classes", classesRoutes);
+app.use("/api/subjects", subjectsRoutes);
+app.use("/api/requests", requestsRoutes);
 
 // Test route
 app.get("/", (req, res) => res.send("Server is running"));

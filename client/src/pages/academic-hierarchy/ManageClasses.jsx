@@ -1,50 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react'
-
-const BOARDS_KEY = 'ah_boards'
-const CLASSES_KEY = 'ah_classes'
-
-// Local seeders to ensure the page works standalone
-const seedBoards = () => {
-  const names = [
-    'CBSE', 'ICSE', 'State Board - Maharashtra', 'State Board - Gujarat', 'State Board - Tamil Nadu',
-    'Cambridge IGCSE', 'IB DP', 'IB MYP', 'NIOS', 'SSC', 'HSC', 'CISCE', 'UP Board', 'RBSE', 'HBSE',
-    'Kerala Board', 'AP Board', 'TS Board', 'Karnataka Board', 'WB Board', 'MP Board', 'Bihar Board',
-    'Jharkhand Board', 'Punjab Board', 'Goa Board'
-  ]
-  const now = new Date().toISOString()
-  return names.map((n, idx) => ({
-    id: crypto.randomUUID(),
-    name: n,
-    createdAt: now,
-    lastUpdated: now,
-    code: n.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 6),
-    classes: 6 + (idx % 7),
-    subjects: 50 + (idx * 3 % 60),
-    institutions: 20 + (idx * 5 % 80),
-  }))
-}
-
-// Simple enter animation helper
-const useEnterAnimation = (open) => {
-  const [show, setShow] = useState(false)
-  useEffect(() => {
-    if (open) {
-      setShow(false)
-      const id = requestAnimationFrame(() => setShow(true))
-      return () => cancelAnimationFrame(id)
-    } else {
-      setShow(false)
-    }
-  }, [open])
-  return show
-}
+import { BoardsAPI, ClassesAPI } from '../../api/ah'
 
 const ManageClasses = () => {
   const [boards, setBoards] = useState([])
   const [selectedBoardId, setSelectedBoardId] = useState('')
 
-  // classesByBoard: { [boardId]: Array<{id,name,createdAt,lastUpdated}> }
-  const [classesMap, setClassesMap] = useState({})
+  // classes list for selected board
+  const [classes, setClasses] = useState([])
 
   // UI state
   const [name, setName] = useState('')
@@ -62,128 +24,45 @@ const ManageClasses = () => {
 
   // Overview state
   const [overviewId, setOverviewId] = useState(null)
-  const openOverview = (c) => setOverviewId(c.id)
+  const openOverview = (c) => setOverviewId(c._id || c.id)
   const closeOverview = () => setOverviewId(null)
-  const overviewClass = useMemo(() => (classesMap[selectedBoardId] || []).find(c => c.id === overviewId) || null, [classesMap, selectedBoardId, overviewId])
+  const overviewClass = useMemo(() => classes.find(c => (c._id || c.id) === overviewId) || null, [classes, overviewId])
 
-  // Load boards and classes
+  // Load boards on mount
   useEffect(() => {
-    // Load or seed boards (read-only here)
-    try {
-      const raw = localStorage.getItem(BOARDS_KEY)
-      let loadedBoards = []
-      if (raw) {
-        const parsed = JSON.parse(raw)
-        loadedBoards = Array.isArray(parsed) ? parsed : []
+    const loadBoards = async () => {
+      try {
+        const list = await BoardsAPI.list()
+        setBoards(Array.isArray(list) ? list : [])
+        if (Array.isArray(list) && list.length) setSelectedBoardId(list[0]._id || list[0].id)
+      } catch (e) {
+        setBoards([])
       }
-      if (!loadedBoards.length) {
-        loadedBoards = seedBoards()
-        localStorage.setItem(BOARDS_KEY, JSON.stringify(loadedBoards))
-      }
-      setBoards(loadedBoards)
-      if (!selectedBoardId && loadedBoards.length) setSelectedBoardId(loadedBoards[0].id)
-    } catch (_) {
-      const seeded = seedBoards()
-      setBoards(seeded)
-      if (!selectedBoardId && seeded.length) setSelectedBoardId(seeded[0].id)
-      localStorage.setItem(BOARDS_KEY, JSON.stringify(seeded))
     }
-
-    // Load or seed classes map
-    try {
-      const rawC = localStorage.getItem(CLASSES_KEY)
-      let map = {}
-      if (rawC) {
-        const parsed = JSON.parse(rawC)
-        if (parsed && typeof parsed === 'object') map = parsed
-      }
-      // Ensure each board has an entry; if missing, seed based on its classes count
-      setClassesMap(prev => {
-        const out = { ...map }
-        boards.forEach((b, bi) => {
-          if (!out[b.id]) {
-            const count = typeof b.classes === 'number' ? b.classes : 8 + (bi % 4)
-            out[b.id] = Array.from({ length: Math.max(1, count) }, (_, i) => ({
-              id: crypto.randomUUID(),
-              name: `Class ${i + 1}`,
-              createdAt: new Date().toISOString(),
-              lastUpdated: new Date().toISOString(),
-              subjects: 6 + (i % 5),
-              sections: 2 + (i % 3),
-              students: 25 + ((i * 7) % 20),
-            }))
-          }
-        })
-        localStorage.setItem(CLASSES_KEY, JSON.stringify(out))
-        return out
-      })
-    } catch (_) {
-      // If classes fail, seed a simple map after boards are loaded in next effect
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    loadBoards()
   }, [])
 
-  // Migration/backfill: ensure subjects count exists for all classes (dummy numbers)
+  // Load classes when selectedBoardId changes
   useEffect(() => {
-    setClassesMap(prev => {
-      const current = prev
-      let mutated = false
-      const normalized = Object.fromEntries(
-        Object.entries(current).map(([bid, arr]) => {
-          const nextArr = (arr || []).map((c, i) => {
-            const hasSubjects = typeof c.subjects === 'number'
-            if (!hasSubjects) mutated = true
-            return {
-              ...c,
-              subjects: hasSubjects ? c.subjects : 6 + (i % 5),
-            }
-          })
-          return [bid, nextArr]
-        })
-      )
-      if (mutated) localStorage.setItem(CLASSES_KEY, JSON.stringify(normalized))
-      return mutated ? normalized : current
-    })
-  }, [])
-
-  // Keep classes map persisted
-  useEffect(() => {
-    try { localStorage.setItem(CLASSES_KEY, JSON.stringify(classesMap)) } catch (_) {}
-  }, [classesMap])
-
-  // When boards list arrives (async), ensure classes are present
-  useEffect(() => {
-    if (!boards.length) return
-    setClassesMap(prev => {
-      const out = { ...prev }
-      let changed = false
-      boards.forEach((b, bi) => {
-        if (!out[b.id]) {
-          const count = typeof b.classes === 'number' ? b.classes : 8 + (bi % 4)
-          out[b.id] = Array.from({ length: Math.max(1, count) }, (_, i) => ({
-            id: crypto.randomUUID(),
-            name: `Class ${i + 1}`,
-            createdAt: new Date().toISOString(),
-            lastUpdated: new Date().toISOString(),
-            subjects: 6 + (i % 5),
-            sections: 2 + (i % 3),
-            students: 25 + ((i * 7) % 20),
-          }))
-          changed = true
-        }
-      })
-      if (changed) localStorage.setItem(CLASSES_KEY, JSON.stringify(out))
-      return out
-    })
-  }, [boards])
+    if (!selectedBoardId) { setClasses([]); return }
+    const load = async () => {
+      try {
+        const list = await ClassesAPI.list(selectedBoardId)
+        setClasses(Array.isArray(list) ? list : [])
+      } catch (e) {
+        setClasses([])
+      }
+    }
+    load()
+  }, [selectedBoardId])
 
   // Derived
   const currentClasses = useMemo(() => {
-    const list = classesMap[selectedBoardId] || []
+    const list = classes || []
     const q = search.trim().toLowerCase()
     if (!q) return list
-    return list.filter(c => c.name.toLowerCase().includes(q))
-  }, [classesMap, selectedBoardId, search])
+    return list.filter(c => (c.name || '').toLowerCase().includes(q))
+  }, [classes, search])
 
   const totalPages = Math.max(1, Math.ceil(currentClasses.length / pageSize))
   const currentPage = Math.min(page, totalPages)
@@ -194,44 +73,42 @@ const ManageClasses = () => {
   useEffect(() => { setPage(1) }, [selectedBoardId, search, pageSize])
 
   // Actions
-  const handleAdd = (e) => {
+  const handleAdd = async (e) => {
     e.preventDefault()
     setError('')
     const trimmed = name.trim()
     if (!trimmed) { setError('Class name is required'); return }
-    const exists = (classesMap[selectedBoardId] || []).some(c => c.name.toLowerCase() === trimmed.toLowerCase())
-    if (exists) { setError('Class already exists for this board'); return }
-    const now = new Date().toISOString()
-    const newClass = { id: crypto.randomUUID(), name: trimmed, createdAt: now, lastUpdated: now, subjects: 5, sections: 0, students: 0 }
-    setClassesMap(prev => ({
-      ...prev,
-      [selectedBoardId]: [newClass, ...(prev[selectedBoardId] || [])]
-    }))
-    setName('')
+    try {
+      const created = await ClassesAPI.create({ name: trimmed, boardId: selectedBoardId })
+      setClasses(prev => [created, ...prev])
+      setName('')
+    } catch (err) {
+      setError('Class already exists for this board or failed to create')
+    }
   }
 
-  const startEdit = (c) => { setEditingId(c.id); setEditingName(c.name) }
+  const startEdit = (c) => { setEditingId(c._id || c.id); setEditingName(c.name) }
   const cancelEdit = () => { setEditingId(null); setEditingName(''); setError('') }
-  const saveEdit = () => {
+  const saveEdit = async () => {
     const trimmed = editingName.trim()
     if (!trimmed) { setError('Class name is required'); return }
-    const exists = (classesMap[selectedBoardId] || []).some(c => c.id !== editingId && c.name.toLowerCase() === trimmed.toLowerCase())
-    if (exists) { setError('Another class with this name already exists'); return }
-    setClassesMap(prev => ({
-      ...prev,
-      [selectedBoardId]: (prev[selectedBoardId] || []).map(c => c.id === editingId ? { ...c, name: trimmed, lastUpdated: new Date().toISOString() } : c)
-    }))
-    setEditingId(null); setEditingName(''); setError('')
+    try {
+      const updated = await ClassesAPI.update(editingId, { name: trimmed })
+      setClasses(prev => prev.map(c => ((c._id || c.id) === editingId ? updated : c)))
+      setEditingId(null); setEditingName(''); setError('')
+    } catch (err) {
+      setError('Another class with this name already exists or update failed')
+    }
   }
 
-  const askDelete = (c) => { setDeleteId(c.id); setDeleteName(c.name) }
+  const askDelete = (c) => { setDeleteId(c._id || c.id); setDeleteName(c.name) }
   const cancelDelete = () => { setDeleteId(null); setDeleteName('') }
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!deleteId) return
-    setClassesMap(prev => ({
-      ...prev,
-      [selectedBoardId]: (prev[selectedBoardId] || []).filter(c => c.id !== deleteId)
-    }))
+    try {
+      await ClassesAPI.remove(deleteId)
+      setClasses(prev => prev.filter(c => (c._id || c.id) !== deleteId))
+    } catch (_) {}
     setDeleteId(null); setDeleteName('')
   }
 
@@ -243,7 +120,7 @@ const ManageClasses = () => {
   const goPrev = () => setPage(p => Math.max(1, p - 1))
   const goNext = () => setPage(p => Math.min(totalPages, p + 1))
 
-  const selectedBoard = boards.find(b => b.id === selectedBoardId) || null
+  const selectedBoard = boards.find(b => (b._id || b.id) === selectedBoardId) || null
 
   return (
     <div className="p-6 space-y-6">
@@ -263,7 +140,7 @@ const ManageClasses = () => {
               className="w-full rounded-md border-gray-300 focus:ring-indigo-500 focus:border-indigo-500"
             >
               {boards.map(b => (
-                <option key={b.id} value={b.id}>{b.name}</option>
+                <option key={b._id || b.id} value={b._id || b.id}>{b.name}</option>
               ))}
             </select>
           </div>
@@ -311,7 +188,7 @@ const ManageClasses = () => {
           {selectedBoard ? (
             <>
               Board: <span className="font-medium text-gray-900">{selectedBoard.name}</span> ·
-              Classes: <span className="font-medium text-gray-900 ml-1">{(classesMap[selectedBoardId] || []).length}</span> ·
+              Classes: <span className="font-medium text-gray-900 ml-1">{classes.length}</span> ·
               Showing <span className="font-medium text-gray-900">{currentClasses.length === 0 ? 0 : startIdx + 1}-{Math.min(endIdx, currentClasses.length)}</span> of {currentClasses.length}
             </>
           ) : 'No board selected'}
@@ -336,7 +213,7 @@ const ManageClasses = () => {
               </tr>
             ) : (
               pageItems.map(c => (
-                <tr key={c.id}>
+                <tr key={c._id || c.id}>
                   <td className="px-4 py-3 text-gray-900">{c.name}</td>
                   <td className="px-4 py-3 text-gray-600">{new Date(c.createdAt).toLocaleString()}</td>
                   <td className="px-4 py-3">
@@ -451,23 +328,23 @@ const ManageClasses = () => {
                 <div className="bg-gray-50 rounded-md p-4">
                   <p className="text-xs uppercase text-gray-500">Created</p>
                   <p className="text-base font-semibold text-gray-900">{new Date(overviewClass.createdAt).toLocaleString()}</p>
-                  <p className="text-sm text-gray-600">Last Updated: <span className="font-medium text-gray-800">{new Date(overviewClass.lastUpdated).toLocaleString()}</span></p>
+                  <p className="text-sm text-gray-600">Last Updated: <span className="font-medium text-gray-800">{new Date(overviewClass.lastUpdated || overviewClass.updatedAt || overviewClass.createdAt).toLocaleString()}</span></p>
                 </div>
                 <div className="bg-gray-50 rounded-md p-4">
                   <p className="text-xs uppercase text-gray-500">Subjects</p>
-                  <p className="text-2xl font-bold text-gray-900">{overviewClass.subjects ?? 0}</p>
+                  <p className="text-2xl font-bold text-gray-900">{overviewClass.metrics?.subjects ?? 0}</p>
                 </div>
                 <div className="bg-gray-50 rounded-md p-4">
                   <p className="text-xs uppercase text-gray-500">Sections</p>
-                  <p className="text-2xl font-bold text-gray-900">{overviewClass.sections ?? 0}</p>
+                  <p className="text-2xl font-bold text-gray-900">{overviewClass.metrics?.sections ?? 0}</p>
                 </div>
                 <div className="bg-gray-50 rounded-md p-4">
                   <p className="text-xs uppercase text-gray-500">Students</p>
-                  <p className="text-2xl font-bold text-gray-900">{overviewClass.students ?? 0}</p>
+                  <p className="text-2xl font-bold text-gray-900">{overviewClass.metrics?.students ?? 0}</p>
                 </div>
                 <div className="bg-gray-50 rounded-md p-4">
                   <p className="text-xs uppercase text-gray-500">ID</p>
-                  <p className="text-sm font-mono text-gray-900 break-all">{overviewClass.id}</p>
+                  <p className="text-sm font-mono text-gray-900 break-all">{overviewClass._id || overviewClass.id}</p>
                 </div>
               </div>
               <div className="px-5 py-4 border-t border-gray-200 flex items-center justify-end">
@@ -496,6 +373,21 @@ const ManageClasses = () => {
       </div>
     </div>
   )
+}
+
+// Simple enter animation helper (kept local)
+const useEnterAnimation = (open) => {
+  const [show, setShow] = useState(false)
+  useEffect(() => {
+    if (open) {
+      setShow(false)
+      const id = requestAnimationFrame(() => setShow(true))
+      return () => cancelAnimationFrame(id)
+    } else {
+      setShow(false)
+    }
+  }, [open])
+  return show
 }
 
 export default ManageClasses

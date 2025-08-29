@@ -1,28 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { BoardsAPI } from '../../api/ah'
 
-const STORAGE_KEY = 'ah_boards'
-
-const seedBoards = () => {
-  const names = [
-    'CBSE', 'ICSE', 'State Board - Maharashtra', 'State Board - Gujarat', 'State Board - Tamil Nadu',
-    'Cambridge IGCSE', 'IB DP', 'IB MYP', 'NIOS', 'SSC', 'HSC', 'CISCE', 'UP Board', 'RBSE', 'HBSE',
-    'Kerala Board', 'AP Board', 'TS Board', 'Karnataka Board', 'WB Board', 'MP Board', 'Bihar Board',
-    'Jharkhand Board', 'Punjab Board', 'Goa Board'
-  ]
-  const now = new Date().toISOString()
-  return names.map((n, idx) => ({
-    id: crypto.randomUUID(),
-    name: n,
-    createdAt: now,
-    lastUpdated: now,
-    code: n.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 6),
-    classes: 6 + (idx % 7),
-    subjects: 50 + (idx * 3 % 60),
-    institutions: 20 + (idx * 5 % 80),
-  }))
-}
-
-// Hook: returns true one frame after `open` becomes true to allow enter transitions
+// Simple enter animation helper to animate modals
 const useEnterAnimation = (open) => {
   const [show, setShow] = useState(false)
   useEffect(() => {
@@ -56,51 +35,24 @@ const ManageBoards = () => {
   // Overview modal state
   const [overviewId, setOverviewId] = useState(null)
 
-  // Load boards from localStorage on mount
+  // Load boards from API on mount
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY)
-      if (raw) {
-        const parsed = JSON.parse(raw)
-        // Backfill missing stats for older data
-        const withStats = (Array.isArray(parsed) ? parsed : []).map((b, idx) => ({
-          code: b.code ?? b.name?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 6),
-          classes: b.classes ?? 6 + (idx % 7),
-          subjects: b.subjects ?? 50 + (idx * 3 % 60),
-          institutions: b.institutions ?? 20 + (idx * 5 % 80),
-          lastUpdated: b.lastUpdated ?? b.createdAt ?? new Date().toISOString(),
-          ...b,
-        }))
-        if (withStats.length > 0) {
-          setBoards(withStats)
-        } else {
-          const seeded = seedBoards()
-          setBoards(seeded)
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(seeded))
-        }
-      } else {
-        const seeded = seedBoards()
-        setBoards(seeded)
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(seeded))
+    const load = async () => {
+      try {
+        const list = await BoardsAPI.list()
+        setBoards(Array.isArray(list) ? list : [])
+      } catch (e) {
+        console.error('Failed to load boards', e)
+        setBoards([])
       }
-    } catch (_) {
-      const seeded = seedBoards()
-      setBoards(seeded)
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(seeded))
     }
+    load()
   }, [])
-
-  // Persist boards to localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(boards))
-    } catch (_) {}
-  }, [boards])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return boards
-    return boards.filter(b => b.name.toLowerCase().includes(q))
+    return boards.filter(b => (b.name || '').toLowerCase().includes(q))
   }, [boards, search])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
@@ -114,7 +66,7 @@ const ManageBoards = () => {
     setPage(1)
   }, [search, pageSize])
 
-  const handleAdd = (e) => {
+  const handleAdd = async (e) => {
     e.preventDefault()
     setError('')
     const trimmed = name.trim()
@@ -122,53 +74,42 @@ const ManageBoards = () => {
       setError('Board name is required')
       return
     }
-    const exists = boards.some(b => b.name.toLowerCase() === trimmed.toLowerCase())
-    if (exists) {
-      setError('Board already exists')
-      return
+    try {
+      const created = await BoardsAPI.create({ name: trimmed })
+      setBoards(prev => [created, ...prev])
+      setName('')
+    } catch (err) {
+      setError('Board already exists or failed to create')
     }
-    const now = new Date().toISOString()
-    const newBoard = {
-      id: crypto.randomUUID(),
-      name: trimmed,
-      createdAt: now,
-      lastUpdated: now,
-      code: trimmed.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 6),
-      classes: 0,
-      subjects: 0,
-      institutions: 0,
-    }
-    setBoards(prev => [newBoard, ...prev])
-    setName('')
   }
 
   const startEdit = (b) => {
-    setEditingId(b.id)
+    setEditingId(b._id || b.id)
     setEditingName(b.name)
   }
   const cancelEdit = () => {
     setEditingId(null)
     setEditingName('')
   }
-  const saveEdit = () => {
+  const saveEdit = async () => {
     const trimmed = editingName.trim()
     if (!trimmed) {
       setError('Board name is required')
       return
     }
-    const exists = boards.some(b => b.id !== editingId && b.name.toLowerCase() === trimmed.toLowerCase())
-    if (exists) {
-      setError('Another board with this name already exists')
-      return
+    try {
+      const updated = await BoardsAPI.update(editingId, { name: trimmed })
+      setBoards(prev => prev.map(b => ((b._id || b.id) === editingId ? updated : b)))
+      setEditingId(null)
+      setEditingName('')
+      setError('')
+    } catch (err) {
+      setError('Another board with this name already exists or update failed')
     }
-    setBoards(prev => prev.map(b => (b.id === editingId ? { ...b, name: trimmed, code: trimmed.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 6), lastUpdated: new Date().toISOString() } : b)))
-    setEditingId(null)
-    setEditingName('')
-    setError('')
   }
 
   const askDelete = (b) => {
-    setDeleteId(b.id)
+    setDeleteId(b._id || b.id)
     setDeleteName(b.name)
   }
 
@@ -177,20 +118,25 @@ const ManageBoards = () => {
     setDeleteName('')
   }
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!deleteId) return
-    setBoards(prev => prev.filter(b => b.id !== deleteId))
+    try {
+      await BoardsAPI.remove(deleteId)
+      setBoards(prev => prev.filter(b => (b._id || b.id) !== deleteId))
+    } catch (e) {
+      // no-op; optionally show error
+    }
     setDeleteId(null)
     setDeleteName('')
   }
 
-  const openOverview = (b) => setOverviewId(b.id)
+  const openOverview = (b) => setOverviewId(b._id || b.id)
   const closeOverview = () => setOverviewId(null)
 
   const goPrev = () => setPage(p => Math.max(1, p - 1))
   const goNext = () => setPage(p => Math.min(totalPages, p + 1))
 
-  const overviewBoard = useMemo(() => boards.find(b => b.id === overviewId) || null, [boards, overviewId])
+  const overviewBoard = useMemo(() => boards.find(b => (b._id || b.id) === overviewId) || null, [boards, overviewId])
 
   // Enter animation flags for modals (must be called unconditionally)
   const editEnter = useEnterAnimation(!!editingId)
@@ -270,7 +216,7 @@ const ManageBoards = () => {
               </tr>
             ) : (
               pageItems.map(b => (
-                <tr key={b.id}>
+                <tr key={b._id || b.id}>
                   <td className="px-4 py-3 text-gray-900">{b.name}</td>
                   <td className="px-4 py-3 text-gray-600">{new Date(b.createdAt).toLocaleString()}</td>
                   <td className="px-4 py-3">
@@ -386,23 +332,23 @@ const ManageBoards = () => {
                 <div className="bg-gray-50 rounded-md p-4">
                   <p className="text-xs uppercase text-gray-500">Created</p>
                   <p className="text-base font-semibold text-gray-900">{new Date(overviewBoard.createdAt).toLocaleString()}</p>
-                  <p className="text-sm text-gray-600">Last Updated: <span className="font-medium text-gray-800">{new Date(overviewBoard.lastUpdated).toLocaleString()}</span></p>
+                  <p className="text-sm text-gray-600">Last Updated: <span className="font-medium text-gray-800">{new Date(overviewBoard.lastUpdated || overviewBoard.updatedAt || overviewBoard.createdAt).toLocaleString()}</span></p>
                 </div>
                 <div className="bg-gray-50 rounded-md p-4">
                   <p className="text-xs uppercase text-gray-500">Classes</p>
-                  <p className="text-2xl font-bold text-gray-900">{overviewBoard.classes}</p>
+                  <p className="text-2xl font-bold text-gray-900">{overviewBoard.metrics?.classes ?? overviewBoard.classes ?? 0}</p>
                 </div>
                 <div className="bg-gray-50 rounded-md p-4">
                   <p className="text-xs uppercase text-gray-500">Subjects</p>
-                  <p className="text-2xl font-bold text-gray-900">{overviewBoard.subjects}</p>
+                  <p className="text-2xl font-bold text-gray-900">{overviewBoard.metrics?.subjects ?? overviewBoard.subjects ?? 0}</p>
                 </div>
                 <div className="bg-gray-50 rounded-md p-4">
                   <p className="text-xs uppercase text-gray-500">Institutions</p>
-                  <p className="text-2xl font-bold text-gray-900">{overviewBoard.institutions}</p>
+                  <p className="text-2xl font-bold text-gray-900">{overviewBoard.metrics?.institutions ?? overviewBoard.institutions ?? 0}</p>
                 </div>
                 <div className="bg-gray-50 rounded-md p-4">
                   <p className="text-xs uppercase text-gray-500">ID</p>
-                  <p className="text-sm font-mono text-gray-900 break-all">{overviewBoard.id}</p>
+                  <p className="text-sm font-mono text-gray-900 break-all">{overviewBoard._id || overviewBoard.id}</p>
                 </div>
               </div>
               <div className="px-5 py-4 border-t border-gray-200 flex items-center justify-end">

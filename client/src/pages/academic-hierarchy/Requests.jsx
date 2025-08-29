@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { RequestsAPI } from '../../api/ah'
 
 // LocalStorage keys shared across hierarchy pages
 const REQ_KEY = 'ah_requests'
@@ -27,56 +28,17 @@ const Requests = () => {
 
   // Load existing data
   useEffect(() => {
-    try {
-      const rq = JSON.parse(localStorage.getItem(REQ_KEY) || '[]')
-      setRequests(Array.isArray(rq) ? rq : [])
-    } catch (_) {
-      setRequests([])
+    const load = async () => {
+      try {
+        const list = await RequestsAPI.list({ type: typeFilter, status: statusFilter })
+        setRequests(Array.isArray(list) ? list : [])
+      } catch (e) {
+        console.error('Failed to load requests', e)
+        setRequests([])
+      }
     }
-
-    try { setBoards(JSON.parse(localStorage.getItem(BOARDS_KEY) || '[]') || []) } catch (_) { setBoards([]) }
-    try { setClassesMap(JSON.parse(localStorage.getItem(CLASSES_KEY) || '{}') || {} ) } catch (_) { setClassesMap({}) }
-    try { setSubjectsMap(JSON.parse(localStorage.getItem(SUBJECTS_KEY) || '{}') || {} ) } catch (_) { setSubjectsMap({}) }
-  }, [])
-
-  // Seed demo requests if empty (for UX preview)
-  useEffect(() => {
-    if (requests.length) return
-    const demo = [
-      {
-        id: crypto.randomUUID(),
-        type: 'board',
-        status: 'pending',
-        createdAt: nowISO(),
-        payload: { name: 'Demo International Board' },
-        customer: { name: 'Asha Gupta', email: 'asha@example.com' },
-      },
-      {
-        id: crypto.randomUUID(),
-        type: 'class',
-        status: 'pending',
-        createdAt: nowISO(),
-        payload: { name: 'Grade 9', boardName: boards[0]?.name },
-        customer: { name: 'Rahul Verma', email: 'rahul@example.com' },
-      },
-      {
-        id: crypto.randomUUID(),
-        type: 'subject',
-        status: 'pending',
-        createdAt: nowISO(),
-        payload: { name: 'Astronomy', boardName: boards[0]?.name, className: (classesMap[boards[0]?.id]?.[0]?.name) },
-        customer: { name: 'Meera Iyer', email: 'meera@example.com' },
-      },
-    ]
-    setRequests(demo)
-    try { localStorage.setItem(REQ_KEY, JSON.stringify(demo)) } catch (_) {}
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [boards, classesMap])
-
-  // Persist requests on change
-  useEffect(() => {
-    try { localStorage.setItem(REQ_KEY, JSON.stringify(requests)) } catch (_) {}
-  }, [requests])
+    load()
+  }, [typeFilter, statusFilter])
 
   // Helpers to find IDs by name (best-effort)
   const findBoardByName = (name) => (boards || []).find(b => b.name?.toLowerCase() === name?.toLowerCase()) || null
@@ -99,108 +61,38 @@ const Requests = () => {
     return [...list].sort((a, b) => (new Date(b.createdAt) - new Date(a.createdAt)))
   }, [requests, typeFilter, statusFilter, search])
 
-  const current = useMemo(() => filtered.find(r => r.id === viewId) || null, [filtered, viewId])
+  const current = useMemo(() => filtered.find(r => r.id === viewId || r._id === viewId) || null, [filtered, viewId])
 
-  // Approve flow – applies change to appropriate store and marks request approved
-  const approve = (req) => {
+  // Approve flow – call server API and refresh
+  const approve = async (req) => {
     if (!req) return
-    const { type, payload } = req
-    const stamp = nowISO()
-
-    if (type === 'board') {
-      const name = (payload?.name || '').trim()
-      if (!name) return setRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'rejected', decisionAt: stamp, note: 'Invalid board name' } : r))
-      // Avoid duplicates
-      const exists = (boards || []).some(b => b.name.toLowerCase() === name.toLowerCase())
-      if (!exists) {
-        const newBoard = {
-          id: crypto.randomUUID(),
-          name,
-          createdAt: stamp,
-          lastUpdated: stamp,
-          code: name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 6),
-          classes: 0,
-          subjects: 0,
-          institutions: 0,
-        }
-        const nextBoards = [newBoard, ...boards]
-        setBoards(nextBoards)
-        try { localStorage.setItem(BOARDS_KEY, JSON.stringify(nextBoards)) } catch (_) {}
-      }
+    try {
+      const id = req._id || req.id
+      await RequestsAPI.approve(id, adminNote?.trim())
+      // Refresh list
+      const list = await RequestsAPI.list({ type: typeFilter, status: statusFilter })
+      setRequests(Array.isArray(list) ? list : [])
+    } catch (e) {
+      console.error('Approve failed', e)
+    } finally {
+      setViewId(null)
+      setAdminNote('')
     }
-
-    if (type === 'class') {
-      const className = (payload?.name || '').trim()
-      if (!className) return setRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'rejected', decisionAt: stamp, note: 'Invalid class name' } : r))
-
-      // Determine board
-      let boardId = payload.boardId
-      if (!boardId && payload.boardName) {
-        const b = findBoardByName(payload.boardName)
-        if (b) boardId = b.id
-      }
-      // Fallback: pick first board if still missing
-      if (!boardId && boards[0]) boardId = boards[0].id
-      if (!boardId) return setRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'rejected', decisionAt: stamp, note: 'No board available to add class' } : r))
-
-      const list = classesMap[boardId] || []
-      const dup = list.some(c => c.name.toLowerCase() === className.toLowerCase())
-      if (!dup) {
-        const newClass = { id: crypto.randomUUID(), name: className, createdAt: stamp, lastUpdated: stamp, subjects: 0, sections: 0, students: 0 }
-        const nextMap = { ...classesMap, [boardId]: [newClass, ...list] }
-        setClassesMap(nextMap)
-        try { localStorage.setItem(CLASSES_KEY, JSON.stringify(nextMap)) } catch (_) {}
-      }
-    }
-
-    if (type === 'subject') {
-      const subjName = (payload?.name || '').trim()
-      if (!subjName) return setRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'rejected', decisionAt: stamp, note: 'Invalid subject name' } : r))
-
-      // Resolve board and class
-      let boardId = payload.boardId
-      if (!boardId && payload.boardName) boardId = findBoardByName(payload.boardName)?.id
-      if (!boardId && boards[0]) boardId = boards[0].id
-
-      let classId = payload.classId
-      if (!classId && (payload.className && boardId)) classId = findClassByName(boardId, payload.className)?.id
-      if (!classId && boardId) classId = (classesMap[boardId] || [])[0]?.id
-
-      if (!boardId || !classId) return setRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'rejected', decisionAt: stamp, note: 'No target board/class available' } : r))
-
-      const byBoard = subjectsMap[boardId] || {}
-      const list = byBoard[classId] || []
-      const dup = list.some(s => s.name.toLowerCase() === subjName.toLowerCase())
-      if (!dup) {
-        const newSubj = {
-          id: crypto.randomUUID(),
-          name: subjName,
-          code: subjName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 6),
-          createdAt: stamp,
-          lastUpdated: stamp,
-          easyQuestions: 5 + Math.floor(Math.random() * 10),
-          mediumQuestions: 4 + Math.floor(Math.random() * 8),
-          hardQuestions: 2 + Math.floor(Math.random() * 6),
-        }
-        const nextByBoard = { ...byBoard, [classId]: [newSubj, ...list] }
-        const nextMap = { ...subjectsMap, [boardId]: nextByBoard }
-        setSubjectsMap(nextMap)
-        try { localStorage.setItem(SUBJECTS_KEY, JSON.stringify(nextMap)) } catch (_) {}
-      }
-    }
-
-    // Mark approved
-    setRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'approved', decisionAt: stamp, note: adminNote?.trim() || r.note } : r))
-    setViewId(null)
-    setAdminNote('')
   }
 
-  const reject = (req) => {
+  const reject = async (req) => {
     if (!req) return
-    const stamp = nowISO()
-    setRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'rejected', decisionAt: stamp, note: adminNote?.trim() || r.note } : r))
-    setViewId(null)
-    setAdminNote('')
+    try {
+      const id = req._id || req.id
+      await RequestsAPI.reject(id, adminNote?.trim())
+      const list = await RequestsAPI.list({ type: typeFilter, status: statusFilter })
+      setRequests(Array.isArray(list) ? list : [])
+    } catch (e) {
+      console.error('Reject failed', e)
+    } finally {
+      setViewId(null)
+      setAdminNote('')
+    }
   }
 
   // UI helpers
@@ -284,7 +176,7 @@ const Requests = () => {
               </tr>
             ) : (
               filtered.map(r => (
-                <tr key={r.id}>
+                <tr key={r._id || r.id}>
                   <td className="px-4 py-3 text-gray-900">{typeLabel(r.type)}</td>
                   <td className="px-4 py-3 text-gray-700">{summary(r)}</td>
                   <td className="px-4 py-3 text-gray-700">{r.customer?.name || '—'}<div className="text-xs text-gray-500">{r.customer?.email || ''}</div></td>
@@ -292,7 +184,7 @@ const Requests = () => {
                   <td className="px-4 py-3">{statusBadge(r.status)}</td>
                   <td className="px-4 py-3 text-right space-x-2">
                     <button
-                      onClick={() => { setViewId(r.id); setAdminNote(r.note || '') }}
+                      onClick={() => { setViewId(r._id || r.id); setAdminNote(r.note || '') }}
                       className="inline-flex items-center justify-center rounded-md border border-gray-300 px-2 py-1 text-sm hover:bg-gray-50"
                     >View</button>
                     {r.status === 'pending' && (

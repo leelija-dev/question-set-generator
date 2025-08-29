@@ -1,44 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { BoardsAPI, ClassesAPI, SubjectsAPI } from '../../api/ah'
 
-const BOARDS_KEY = 'ah_boards'
-const CLASSES_KEY = 'ah_classes'
-const SUBJECTS_KEY = 'ah_subjects'
-
-// Local seeders to ensure the page works standalone
-const seedBoards = () => {
-  const names = [
-    'CBSE', 'ICSE', 'State Board - Maharashtra', 'State Board - Gujarat', 'State Board - Tamil Nadu',
-    'Cambridge IGCSE', 'IB DP', 'IB MYP', 'NIOS', 'SSC', 'HSC', 'CISCE', 'UP Board', 'RBSE', 'HBSE',
-    'Kerala Board', 'AP Board', 'TS Board', 'Karnataka Board', 'WB Board', 'MP Board', 'Bihar Board',
-    'Jharkhand Board', 'Punjab Board', 'Goa Board'
-  ]
-  const now = new Date().toISOString()
-  return names.map((n, idx) => ({
-    id: crypto.randomUUID(),
-    name: n,
-    createdAt: now,
-    lastUpdated: now,
-    code: n.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 6),
-    classes: 6 + (idx % 7),
-    subjects: 50 + (idx * 3 % 60),
-    institutions: 20 + (idx * 5 % 80),
-  }))
-}
-
-const defaultSubjects = [
-  'Mathematics',
-  'Science',
-  'English',
-  'Social Studies',
-  'Computer Science',
-  'Physics',
-  'Chemistry',
-  'Biology',
-  'Geography',
-  'History',
-]
-
-// Simple enter animation helper
+// Simple enter animation helper to animate modals
 const useEnterAnimation = (open) => {
   const [show, setShow] = useState(false)
   useEffect(() => {
@@ -57,11 +20,11 @@ const ManageSubjects = () => {
   const [boards, setBoards] = useState([])
   const [selectedBoardId, setSelectedBoardId] = useState('')
 
-  // classesByBoard: { [boardId]: Array<{id,name,createdAt,lastUpdated}> }
-  const [classesMap, setClassesMap] = useState({})
+  // classes for selected board
+  const [classes, setClasses] = useState([])
 
-  // subjectsByBoardClass: { [boardId]: { [classId]: Array<{id,name,createdAt,lastUpdated,code?}> } }
-  const [subjectsMap, setSubjectsMap] = useState({})
+  // subjects for selected board+class
+  const [subjects, setSubjects] = useState([])
 
   // UI state
   const [selectedClassId, setSelectedClassId] = useState('')
@@ -80,159 +43,61 @@ const ManageSubjects = () => {
 
   // Overview state
   const [overviewId, setOverviewId] = useState(null)
-  const openOverview = (s) => setOverviewId(s.id)
+  const openOverview = (s) => setOverviewId(s._id || s.id)
   const closeOverview = () => setOverviewId(null)
-  const overviewSubject = useMemo(() => (subjectsMap[selectedBoardId]?.[selectedClassId] || []).find(s => s.id === overviewId) || null, [subjectsMap, selectedBoardId, selectedClassId, overviewId])
+  const overviewSubject = useMemo(() => subjects.find(s => (s._id || s.id) === overviewId) || null, [subjects, overviewId])
 
-  // Load or seed boards and classes
+  // Load boards on mount
   useEffect(() => {
-    // Boards
-    try {
-      const raw = localStorage.getItem(BOARDS_KEY)
-      let loadedBoards = []
-      if (raw) {
-        const parsed = JSON.parse(raw)
-        loadedBoards = Array.isArray(parsed) ? parsed : []
+    const loadBoards = async () => {
+      try {
+        const list = await BoardsAPI.list()
+        setBoards(Array.isArray(list) ? list : [])
+        if (Array.isArray(list) && list.length) setSelectedBoardId(list[0]._id || list[0].id)
+      } catch (e) {
+        setBoards([])
       }
-      if (!loadedBoards.length) {
-        loadedBoards = seedBoards()
-        localStorage.setItem(BOARDS_KEY, JSON.stringify(loadedBoards))
-      }
-      setBoards(loadedBoards)
-      if (!selectedBoardId && loadedBoards.length) setSelectedBoardId(loadedBoards[0].id)
-    } catch (_) {
-      const seeded = seedBoards()
-      setBoards(seeded)
-      if (!selectedBoardId && seeded.length) setSelectedBoardId(seeded[0].id)
-      localStorage.setItem(BOARDS_KEY, JSON.stringify(seeded))
     }
-
-    // Classes
-    try {
-      const rawC = localStorage.getItem(CLASSES_KEY)
-      let map = {}
-      if (rawC) {
-        const parsed = JSON.parse(rawC)
-        if (parsed && typeof parsed === 'object') map = parsed
-      }
-      // If empty, seed for each board with a few classes
-      if (!Object.keys(map).length) {
-        const now = new Date().toISOString()
-        const seeded = {}
-        boards.forEach((b, bi) => {
-          const count = typeof b?.classes === 'number' ? b.classes : 6 + (bi % 5)
-          seeded[b.id] = Array.from({ length: Math.max(1, count) }, (_, i) => ({
-            id: crypto.randomUUID(),
-            name: `Class ${i + 1}`,
-            createdAt: now,
-            lastUpdated: now,
-          }))
-        })
-        map = seeded
-        localStorage.setItem(CLASSES_KEY, JSON.stringify(seeded))
-      }
-      setClassesMap(map)
-      if (!selectedClassId && selectedBoardId && Array.isArray(map[selectedBoardId]) && map[selectedBoardId].length) {
-        setSelectedClassId(map[selectedBoardId][0].id)
-      }
-    } catch (_) {
-      // rely on ManageClasses to (re)seed later if needed
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    loadBoards()
   }, [])
 
-  // When boards or selection changes, ensure selected class is valid
+  // Load classes when selected board changes
   useEffect(() => {
-    const list = classesMap[selectedBoardId] || []
-    if (!list.length) {
-      setSelectedClassId('')
-    } else if (!selectedClassId || !list.some(c => c.id === selectedClassId)) {
-      setSelectedClassId(list[0].id)
+    if (!selectedBoardId) { setClasses([]); setSelectedClassId(''); return }
+    const load = async () => {
+      try {
+        const list = await ClassesAPI.list(selectedBoardId)
+        setClasses(Array.isArray(list) ? list : [])
+        if (Array.isArray(list) && list.length) setSelectedClassId(list[0]._id || list[0].id)
+        else setSelectedClassId('')
+      } catch (e) {
+        setClasses([]); setSelectedClassId('')
+      }
     }
-  }, [classesMap, selectedBoardId])
+    load()
+  }, [selectedBoardId])
 
-  // Load/seed subjects map
+  // Load subjects when board or class changes
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(SUBJECTS_KEY)
-      let map = {}
-      if (raw) {
-        const parsed = JSON.parse(raw)
-        if (parsed && typeof parsed === 'object') map = parsed
+    if (!selectedBoardId || !selectedClassId) { setSubjects([]); return }
+    const load = async () => {
+      try {
+        const list = await SubjectsAPI.list({ boardId: selectedBoardId, classId: selectedClassId })
+        setSubjects(Array.isArray(list) ? list : [])
+      } catch (e) {
+        setSubjects([])
       }
-      setSubjectsMap(map)
-    } catch (_) {}
-  }, [])
-
-  // Ensure subjects exist for a selected board+class pair
-  useEffect(() => {
-    if (!selectedBoardId || !selectedClassId) return
-    setSubjectsMap(prev => {
-      const byBoard = { ...(prev[selectedBoardId] || {}) }
-      if (!Array.isArray(byBoard[selectedClassId]) || !byBoard[selectedClassId].length) {
-        const now = new Date().toISOString()
-        const seeded = defaultSubjects.slice(0, 5).map((n, idx) => ({
-          id: crypto.randomUUID(),
-          name: `${n}`,
-          code: n.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 6) + (idx + 1),
-          createdAt: now,
-          lastUpdated: now,
-          easyQuestions: 5 + ((idx * 3) % 20),
-          mediumQuestions: 3 + ((idx * 4) % 15),
-          hardQuestions: 1 + ((idx * 2) % 10),
-        }))
-        byBoard[selectedClassId] = seeded
-        const out = { ...prev, [selectedBoardId]: byBoard }
-        try { localStorage.setItem(SUBJECTS_KEY, JSON.stringify(out)) } catch (_) {}
-        return out
-      }
-      return prev
-    })
+    }
+    load()
   }, [selectedBoardId, selectedClassId])
-
-  // Backfill: ensure easyQuestions exists on all subjects with dummy numbers
-  useEffect(() => {
-    setSubjectsMap(prev => {
-      let mutated = false
-      const next = Object.fromEntries(Object.entries(prev).map(([bid, byClass]) => {
-        const nextByClass = Object.fromEntries(Object.entries(byClass || {}).map(([cid, list]) => {
-          const nextList = (list || []).map((s, i) => {
-            const hasEasy = typeof s.easyQuestions === 'number'
-            const hasMed = typeof s.mediumQuestions === 'number'
-            const hasHard = typeof s.hardQuestions === 'number'
-            if (hasEasy && hasMed && hasHard) return s
-            mutated = true
-            return {
-              ...s,
-              easyQuestions: hasEasy ? s.easyQuestions : 7 + ((i * 5) % 18),
-              mediumQuestions: hasMed ? s.mediumQuestions : 5 + ((i * 3) % 14),
-              hardQuestions: hasHard ? s.hardQuestions : 2 + ((i * 2) % 9),
-            }
-          })
-          return [cid, nextList]
-        }))
-        return [bid, nextByClass]
-      }))
-      if (mutated) {
-        try { localStorage.setItem(SUBJECTS_KEY, JSON.stringify(next)) } catch (_) {}
-        return next
-      }
-      return prev
-    })
-  }, [])
-
-  // Persist subjects map
-  useEffect(() => {
-    try { localStorage.setItem(SUBJECTS_KEY, JSON.stringify(subjectsMap)) } catch (_) {}
-  }, [subjectsMap])
 
   // Derived
   const currentSubjects = useMemo(() => {
-    const list = (subjectsMap[selectedBoardId]?.[selectedClassId]) || []
+    const list = subjects || []
     const q = search.trim().toLowerCase()
     if (!q) return list
-    return list.filter(s => s.name.toLowerCase().includes(q) || (s.code || '').toLowerCase().includes(q))
-  }, [subjectsMap, selectedBoardId, selectedClassId, search])
+    return list.filter(s => (s.name || '').toLowerCase().includes(q) || (s.code || '').toLowerCase().includes(q))
+  }, [subjects, search])
 
   const totalPages = Math.max(1, Math.ceil(currentSubjects.length / pageSize))
   const currentPage = Math.min(page, totalPages)
@@ -243,62 +108,42 @@ const ManageSubjects = () => {
   useEffect(() => { setPage(1) }, [selectedBoardId, selectedClassId, search, pageSize])
 
   // Actions
-  const handleAdd = (e) => {
+  const handleAdd = async (e) => {
     e.preventDefault()
     setError('')
     const trimmed = name.trim()
     if (!trimmed) { setError('Subject name is required'); return }
-    const exists = (subjectsMap[selectedBoardId]?.[selectedClassId] || []).some(s => s.name.toLowerCase() === trimmed.toLowerCase())
-    if (exists) { setError('Subject already exists in this class'); return }
-    const now = new Date().toISOString()
-    const newSubj = {
-      id: crypto.randomUUID(),
-      name: trimmed,
-      code: trimmed.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 6),
-      createdAt: now,
-      lastUpdated: now,
-      easyQuestions: 8 + Math.floor(Math.random() * 15),
-      mediumQuestions: 6 + Math.floor(Math.random() * 12),
-      hardQuestions: 3 + Math.floor(Math.random() * 8),
+    try {
+      const created = await SubjectsAPI.create({ name: trimmed, boardId: selectedBoardId, classId: selectedClassId })
+      setSubjects(prev => [created, ...prev])
+      setName('')
+    } catch (err) {
+      setError('Subject already exists in this class or failed to create')
     }
-    setSubjectsMap(prev => ({
-      ...prev,
-      [selectedBoardId]: {
-        ...(prev[selectedBoardId] || {}),
-        [selectedClassId]: [newSubj, ...((prev[selectedBoardId]?.[selectedClassId]) || [])]
-      }
-    }))
-    setName('')
   }
 
-  const startEdit = (s) => { setEditingId(s.id); setEditingName(s.name); setError('') }
+  const startEdit = (s) => { setEditingId(s._id || s.id); setEditingName(s.name); setError('') }
   const cancelEdit = () => { setEditingId(null); setEditingName(''); setError('') }
-  const saveEdit = () => {
+  const saveEdit = async () => {
     const trimmed = editingName.trim()
     if (!trimmed) { setError('Subject name is required'); return }
-    const exists = (subjectsMap[selectedBoardId]?.[selectedClassId] || []).some(s => s.id !== editingId && s.name.toLowerCase() === trimmed.toLowerCase())
-    if (exists) { setError('Another subject with this name already exists'); return }
-    setSubjectsMap(prev => ({
-      ...prev,
-      [selectedBoardId]: {
-        ...(prev[selectedBoardId] || {}),
-        [selectedClassId]: (prev[selectedBoardId]?.[selectedClassId] || []).map(s => s.id === editingId ? { ...s, name: trimmed, code: trimmed.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 6), lastUpdated: new Date().toISOString() } : s)
-      }
-    }))
-    setEditingId(null); setEditingName(''); setError('')
+    try {
+      const updated = await SubjectsAPI.update(editingId, { name: trimmed })
+      setSubjects(prev => prev.map(s => ((s._id || s.id) === editingId ? updated : s)))
+      setEditingId(null); setEditingName(''); setError('')
+    } catch (err) {
+      setError('Another subject with this name already exists or update failed')
+    }
   }
 
-  const askDelete = (s) => { setDeleteId(s.id); setDeleteName(s.name) }
+  const askDelete = (s) => { setDeleteId(s._id || s.id); setDeleteName(s.name) }
   const cancelDelete = () => { setDeleteId(null); setDeleteName('') }
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!deleteId) return
-    setSubjectsMap(prev => ({
-      ...prev,
-      [selectedBoardId]: {
-        ...(prev[selectedBoardId] || {}),
-        [selectedClassId]: (prev[selectedBoardId]?.[selectedClassId] || []).filter(s => s.id !== deleteId)
-      }
-    }))
+    try {
+      await SubjectsAPI.remove(deleteId)
+      setSubjects(prev => prev.filter(s => (s._id || s.id) !== deleteId))
+    } catch (_) {}
     setDeleteId(null); setDeleteName('')
   }
 
@@ -322,15 +167,15 @@ const ManageSubjects = () => {
           <label className="text-sm text-gray-600 mb-1">Board</label>
           <select value={selectedBoardId} onChange={e => setSelectedBoardId(e.target.value)} className="rounded-md border-gray-300">
             {boards.map(b => (
-              <option key={b.id} value={b.id}>{b.name}</option>
+              <option key={b._id || b.id} value={b._id || b.id}>{b.name}</option>
             ))}
           </select>
         </div>
         <div className="flex flex-col">
           <label className="text-sm text-gray-600 mb-1">Class</label>
           <select value={selectedClassId} onChange={e => setSelectedClassId(e.target.value)} className="rounded-md border-gray-300">
-            {(classesMap[selectedBoardId] || []).map(c => (
-              <option key={c.id} value={c.id}>{c.name}</option>
+            {classes.map(c => (
+              <option key={c._id || c.id} value={c._id || c.id}>{c.name}</option>
             ))}
           </select>
         </div>
@@ -356,8 +201,8 @@ const ManageSubjects = () => {
       {/* Stats and page size */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-gray-600">
-          Board: <span className="font-medium text-gray-800">{boards.find(b => b.id === selectedBoardId)?.name || '—'}</span>
-          {' '}· Class: <span className="font-medium text-gray-800">{(classesMap[selectedBoardId] || []).find(c => c.id === selectedClassId)?.name || '—'}</span>
+          Board: <span className="font-medium text-gray-800">{boards.find(b => (b._id || b.id) === selectedBoardId)?.name || '—'}</span>
+          {' '}· Class: <span className="font-medium text-gray-800">{classes.find(c => (c._id || c.id) === selectedClassId)?.name || '—'}</span>
           {' '}· Total Subjects: <span className="font-medium text-gray-800">{currentSubjects.length}</span>
         </p>
         <div className="flex items-center gap-2">
@@ -389,7 +234,7 @@ const ManageSubjects = () => {
               </tr>
             ) : (
               pageItems.map(s => (
-                <tr key={s.id}>
+                <tr key={s._id || s.id}>
                   <td className="px-4 py-3 text-gray-900">{s.name}</td>
                   <td className="px-4 py-3 text-gray-700">{(s.easyQuestions ?? 0) + (s.mediumQuestions ?? 0) + (s.hardQuestions ?? 0)}</td>
                   <td className="px-4 py-3">
@@ -495,11 +340,11 @@ const ManageSubjects = () => {
               <div className="px-5 py-5 grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-gray-50 rounded-md p-4">
                   <p className="text-xs uppercase text-gray-500">Board</p>
-                  <p className="text-base font-semibold text-gray-900">{boards.find(b => b.id === selectedBoardId)?.name || '—'}</p>
+                  <p className="text-base font-semibold text-gray-900">{boards.find(b => (b._id || b.id) === selectedBoardId)?.name || '—'}</p>
                 </div>
                 <div className="bg-gray-50 rounded-md p-4">
                   <p className="text-xs uppercase text-gray-500">Class</p>
-                  <p className="text-base font-semibold text-gray-900">{(classesMap[selectedBoardId] || []).find(c => c.id === selectedClassId)?.name || '—'}</p>
+                  <p className="text-base font-semibold text-gray-900">{classes.find(c => (c._id || c.id) === selectedClassId)?.name || '—'}</p>
                 </div>
                 <div className="bg-gray-50 rounded-md p-4 md:col-span-2">
                   <p className="text-xs uppercase text-gray-500">Subject</p>
@@ -524,7 +369,7 @@ const ManageSubjects = () => {
                 <div className="bg-gray-50 rounded-md p-4 md:col-span-2">
                   <p className="text-xs uppercase text-gray-500">Created</p>
                   <p className="text-base font-semibold text-gray-900">{new Date(overviewSubject.createdAt).toLocaleString()}</p>
-                  <p className="text-sm text-gray-600">Last Updated: <span className="font-medium text-gray-800">{new Date(overviewSubject.lastUpdated).toLocaleString()}</span></p>
+                  <p className="text-sm text-gray-600">Last Updated: <span className="font-medium text-gray-800">{new Date(overviewSubject.lastUpdated || overviewSubject.updatedAt || overviewSubject.createdAt).toLocaleString()}</span></p>
                 </div>
               </div>
               <div className="px-5 py-4 border-t border-gray-200 flex items-center justify-end">
