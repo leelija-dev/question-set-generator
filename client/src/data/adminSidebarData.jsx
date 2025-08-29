@@ -1,4 +1,29 @@
+import ManageBoards from "../pages/academic-hierarchy/ManageBoards";
+import ManageClasses from "../pages/academic-hierarchy/ManageClasses";
+import ManageSubjects from "../pages/academic-hierarchy/ManageSubjects";
+import Requests from "../pages/academic-hierarchy/Requests";
+import DifficultyDistribution from "../pages/analytics/DifficultyDistribution";
+import ExportLogs from "../pages/analytics/ExportLogs";
+import GeneratedSets from "../pages/analytics/GeneratedSets";
+import CusRequest from "../pages/customers/CusRequest";
+import CustomerList from "../pages/customers/CustomerList";
+import CustomerUsage from "../pages/customers/CustomerUsage";
 import Dashboard from "../pages/Dashboard";
+import BoardAPIs from "../pages/integrations/BoardAPIs";
+import ThirdPartyServices from "../pages/integrations/ThirdPartyServices";
+import AddQuestion from "../pages/question-bank/AddQuestion";
+import AllQuestions from "../pages/question-bank/AllQuestions";
+import ImportQuestions from "../pages/question-bank/ImportQuestions";
+import QuestionApproval from "../pages/question-bank/QuestionApproval";
+import AdminProfile from "../pages/settings/AdminProfile";
+import RolesPermissions from "../pages/settings/RolesPermissions";
+import SystemConfig from "../pages/settings/SystemConfig";
+import ActiveSubscriptions from "../pages/subscription/ActiveSubscriptions";
+import BillingSettings from "../pages/subscription/BillingSettings";
+import Packages from "../pages/subscription/Packages";
+import Transactions from "../pages/subscription/Transactions";
+import CustomerTickets from "../pages/support/CustomerTickets";
+import KnowledgeBase from "../pages/support/KnowledgeBase";
 
 const adminSidebarData = {
   dashboard: {
@@ -22,25 +47,25 @@ const adminSidebarData = {
       packages: {
         title: "Packages",
         path: "packages",
-        component: null,
+        component:Packages ,
         description: "Create/update/delete plans",
       },
       transactions: {
         title: "Transactions",
         path: "transactions",
-        component: null,
+        component:Transactions ,
         description: "Payment logs",
       },
       activeSubscriptions: {
         title: "Active Subscriptions",
         path: "active-subscriptions",
-        component: null,
+        component: ActiveSubscriptions,
         description: "View all active subscriptions",
       },
       billingSettings: {
         title: "Billing Settings",
         path: "billing-settings",
-        component: null,
+        component: BillingSettings,
         description: "Payment gateway configuration",
       },
     },
@@ -53,22 +78,22 @@ const adminSidebarData = {
       manageBoards: {
         title: "Manage Boards",
         path: "manage-boards",
-        component: null,
+        component: ManageBoards,
       },
       manageClasses: {
         title: "Manage Classes",
         path: "manage-classes",
-        component: null,
+        component: ManageClasses,
       },
       manageSubjects: {
         title: "Manage Subjects",
         path: "manage-subjects",
-        component: null,
+        component: ManageSubjects,
       },
       requests: {
         title: "Requests",
         path: "requests",
-        component: null,
+        component: Requests,
         description: "Approve/reject customer requests",
       },
     },
@@ -81,23 +106,23 @@ const adminSidebarData = {
       allQuestions: {
         title: "All Questions",
         path: "all-questions",
-        component: null,
+        component: AllQuestions,
       },
       addQuestion: {
         title: "Add Question",
         path: "add-question",
-        component: null,
+        component: AddQuestion,
       },
       importQuestions: {
         title: "Import Questions",
         path: "import-questions",
-        component: null,
+        component: ImportQuestions,
         description: "Bulk upload via Excel/CSV",
       },
       questionApproval: {
         title: "Question Approval",
         path: "question-approval",
-        component: null,
+        component: QuestionApproval,
         description: "Moderation queue if required",
       },
     },
@@ -110,19 +135,19 @@ const adminSidebarData = {
       customerList: {
         title: "Customer List",
         path: "customer-list",
-        component: null,
+        component: CustomerList,
         description: "Schools, teachers, institutions",
       },
       customerUsage: {
         title: "Customer Usage",
         path: "customer-usage",
-        component: null,
+        component: CustomerUsage,
         description: "Sets generated, storage used",
       },
       requests: {
         title: "Requests",
         path: "requests",
-        component: null,
+        component: CusRequest,
         description: "Board/class/subject requests",
       },
     },
@@ -135,18 +160,18 @@ const adminSidebarData = {
       generatedSets: {
         title: "Generated Sets",
         path: "generated-sets",
-        component: null,
+        component: GeneratedSets,
         description: "By customer, board, class",
       },
       difficultyDistribution: {
         title: "Difficulty Distribution Reports",
         path: "difficulty-distribution",
-        component: null,
+        component: DifficultyDistribution,
       },
       exportLogs: {
         title: "Export Logs",
         path: "export-logs",
-        component: null,
+        component: ExportLogs,
         description: "PDF/Word/Excel usage stats",
       },
     },
@@ -159,13 +184,13 @@ const adminSidebarData = {
       boardAPIs: {
         title: "Board APIs",
         path: "board-apis",
-        component: null,
+        component: BoardAPIs,
         description: "CBSE, ICSE, State Boards, etc.",
       },
       thirdPartyServices: {
         title: "3rd Party Services",
         path: "third-party-services",
-        component: null,
+        component: ThirdPartyServices,
         description: "AI API, PDF export, etc.",
       },
     },
@@ -178,18 +203,18 @@ const adminSidebarData = {
       adminProfile: {
         title: "Admin Profile & Security",
         path: "admin-profile",
-        component: null,
+        component: AdminProfile,
       },
       rolesPermissions: {
         title: "Roles & Permissions",
         path: "roles-permissions",
-        component: null,
+        component: RolesPermissions,
         description: "For multiple admin staff",
       },
       systemConfig: {
         title: "System Config",
         path: "system-config",
-        component: null,
+        component: SystemConfig,
         description: "Logo, email templates, etc.",
       },
     },
@@ -202,12 +227,12 @@ const adminSidebarData = {
       customerTickets: {
         title: "Customer Tickets / Requests",
         path: "customer-tickets",
-        component: null,
+        component: CustomerTickets,
       },
       knowledgeBase: {
         title: "Knowledge Base / Help Docs",
         path: "knowledge-base",
-        component: null,
+        component: KnowledgeBase,
       },
     },
   },
