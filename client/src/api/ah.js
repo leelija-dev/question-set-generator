@@ -58,6 +58,24 @@ export const SubjectsAPI = {
   remove: (id) => http(`/subjects/${id}`, { method: 'DELETE' }),
 };
 
+// Questions
+export const QuestionsAPI = {
+  list: (params = {}) => {
+    const q = new URLSearchParams();
+    if (params.boardId) q.set('boardId', params.boardId);
+    if (params.classId) q.set('classId', params.classId);
+    if (params.subjectId) q.set('subjectId', params.subjectId);
+    if (params.difficulty) q.set('difficulty', params.difficulty);
+    if (params.status !== undefined && params.status !== null && params.status !== '') q.set('status', params.status);
+    if (params.q) q.set('q', params.q);
+    const qs = q.toString();
+    return http(`/questions${qs ? `?${qs}` : ''}`);
+  },
+  create: (data) => http('/questions', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id, data) => http(`/questions/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  remove: (id) => http(`/questions/${id}`, { method: 'DELETE' }),
+};
+
 // Requests
 export const RequestsAPI = {
   list: (params = {}) => {
@@ -73,4 +91,4 @@ export const RequestsAPI = {
   reject: (id, note) => http(`/requests/${id}/reject`, { method: 'PUT', body: JSON.stringify({ note }) }),
 };
 
-export default { BoardsAPI, ClassesAPI, SubjectsAPI, RequestsAPI };
+export default { BoardsAPI, ClassesAPI, SubjectsAPI, QuestionsAPI, RequestsAPI };

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { BoardsAPI, ClassesAPI, SubjectsAPI } from '../../api/ah'
-import { useToast } from '../../components/Toast'
+import { toast } from 'react-toastify'
 
 // Simple enter animation helper to animate modals
 const useEnterAnimation = (open) => {
@@ -20,13 +20,17 @@ const useEnterAnimation = (open) => {
 const ManageSubjects = () => {
   const [boards, setBoards] = useState([])
   const [selectedBoardId, setSelectedBoardId] = useState('')
-  const toast = useToast()
 
   // classes for selected board
   const [classes, setClasses] = useState([])
 
   // subjects for selected board+class
   const [subjects, setSubjects] = useState([])
+
+  // loading states
+  const [loadingBoards, setLoadingBoards] = useState(false)
+  const [loadingClasses, setLoadingClasses] = useState(false)
+  const [loadingSubjects, setLoadingSubjects] = useState(false)
 
   // UI state
   const [selectedClassId, setSelectedClassId] = useState('')
@@ -41,6 +45,7 @@ const ManageSubjects = () => {
 
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
+  const [sortBy, setSortBy] = useState('newest') // newest | oldest | az
 
   // Add Subject modal state
   const [addOpen, setAddOpen] = useState(false)
@@ -59,12 +64,15 @@ const ManageSubjects = () => {
   // Load boards on mount
   useEffect(() => {
     const loadBoards = async () => {
+      setLoadingBoards(true)
       try {
         const list = await BoardsAPI.list()
         setBoards(Array.isArray(list) ? list : [])
         if (Array.isArray(list) && list.length) setSelectedBoardId(list[0]._id || list[0].id)
       } catch (e) {
         setBoards([])
+      } finally {
+        setLoadingBoards(false)
       }
     }
     loadBoards()
@@ -74,6 +82,7 @@ const ManageSubjects = () => {
   useEffect(() => {
     if (!selectedBoardId) { setClasses([]); setSelectedClassId(''); return }
     const load = async () => {
+      setLoadingClasses(true)
       try {
         const list = await ClassesAPI.list(selectedBoardId)
         setClasses(Array.isArray(list) ? list : [])
@@ -81,6 +90,8 @@ const ManageSubjects = () => {
         else setSelectedClassId('')
       } catch (e) {
         setClasses([]); setSelectedClassId('')
+      } finally {
+        setLoadingClasses(false)
       }
     }
     load()
@@ -90,11 +101,14 @@ const ManageSubjects = () => {
   useEffect(() => {
     if (!selectedBoardId || !selectedClassId) { setSubjects([]); return }
     const load = async () => {
+      setLoadingSubjects(true)
       try {
         const list = await SubjectsAPI.list({ boardId: selectedBoardId, classId: selectedClassId })
         setSubjects(Array.isArray(list) ? list : [])
       } catch (e) {
         setSubjects([])
+      } finally {
+        setLoadingSubjects(false)
       }
     }
     load()
@@ -104,9 +118,15 @@ const ManageSubjects = () => {
   const currentSubjects = useMemo(() => {
     const list = subjects || []
     const q = search.trim().toLowerCase()
-    if (!q) return list
-    return list.filter(s => (s.name || '').toLowerCase().includes(q) || (s.code || '').toLowerCase().includes(q))
-  }, [subjects, search])
+    const base = q
+      ? list.filter(s => (s.name || '').toLowerCase().includes(q) || (s.code || '').toLowerCase().includes(q))
+      : list
+    const sorted = [...base]
+    if (sortBy === 'newest') sorted.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    else if (sortBy === 'oldest') sorted.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+    else if (sortBy === 'az') sorted.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+    return sorted
+  }, [subjects, search, sortBy])
 
   const totalPages = Math.max(1, Math.ceil(currentSubjects.length / pageSize))
   const currentPage = Math.min(page, totalPages)
@@ -114,7 +134,7 @@ const ManageSubjects = () => {
   const endIdx = startIdx + pageSize
   const pageItems = currentSubjects.slice(startIdx, endIdx)
 
-  useEffect(() => { setPage(1) }, [selectedBoardId, selectedClassId, search, pageSize])
+  useEffect(() => { setPage(1) }, [selectedBoardId, selectedClassId, search, pageSize, sortBy])
 
   // Actions
   const openAdd = () => {
@@ -248,14 +268,20 @@ const ManageSubjects = () => {
         <button onClick={openAdd} className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700">Add Subject</button>
       </div>
 
-      {/* Stats and page size */}
+      {/* Stats, sort and page size */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-gray-600">
           Board: <span className="font-medium text-gray-800">{boards.find(b => (b._id || b.id) === selectedBoardId)?.name || '—'}</span>
           {' '}· Class: <span className="font-medium text-gray-800">{classes.find(c => (c._id || c.id) === selectedClassId)?.name || '—'}</span>
           {' '}· Total Subjects: <span className="font-medium text-gray-800">{currentSubjects.length}</span>
         </p>
-        <div className="flex items-center gap-2">
+        <div className="flex sm:flex-nowrap flex-wrap items-center gap-2">
+          <span className="text-sm text-gray-600">Sort</span>
+          <select className="rounded-md border-gray-300" value={sortBy} onChange={e => setSortBy(e.target.value)}>
+            <option value="newest">Newest</option>
+            <option value="oldest">Oldest</option>
+            <option value="az">A–Z</option>
+          </select>
           <span className="text-sm text-gray-600">Page size</span>
           <select className="rounded-md border-gray-300" value={pageSize} onChange={e => setPageSize(Number(e.target.value))}>
             <option value={5}>5</option>
@@ -279,7 +305,15 @@ const ManageSubjects = () => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-100">
-            {pageItems.length === 0 ? (
+            {(loadingBoards || loadingClasses || loadingSubjects) ? (
+              <tr>
+                <td colSpan={6} className="px-4 py-16">
+                  <div className="flex items-center justify-center">
+                    <div className="h-10 w-10 rounded-full border-4 border-gray-200 border-t-indigo-600 animate-spin" />
+                  </div>
+                </td>
+              </tr>
+            ) : pageItems.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-4 py-8 text-center text-gray-500">No subjects found</td>
               </tr>
@@ -332,7 +366,7 @@ const ManageSubjects = () => {
                       className="inline-flex items-center justify-center rounded-md border border-gray-300 p-1.5 text-gray-700 hover:bg-red-50 hover:text-red-700"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
-                        <path d="M6 7h12v2H6V7zm1 3h10v2H7v-2zm1 3h10v2H8v-2zm1 3h10v2H9v-2z" />
+                        <path d="M6 7h12v2H6V7zm1 3h10v2H7v-2zm1 3h10v2H8v-2z" />
                       </svg>
                     </button>
                   </td>

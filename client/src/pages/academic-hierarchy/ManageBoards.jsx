@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { BoardsAPI } from '../../api/ah'
-import { useToast } from '../../components/Toast'
+import { toast } from 'react-toastify'
 
 // Simple enter animation helper to animate modals
 const useEnterAnimation = (open) => {
@@ -22,13 +22,14 @@ const ManageBoards = () => {
   const [name, setName] = useState('')
   const [search, setSearch] = useState('')
   const [error, setError] = useState('')
-  const toast = useToast()
+  const [loading, setLoading] = useState(false)
 
   const [editingId, setEditingId] = useState(null)
   const [editingName, setEditingName] = useState('')
 
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
+  const [sortBy, setSortBy] = useState('newest') // newest | oldest | az
 
   // Delete confirmation state
   const [deleteId, setDeleteId] = useState(null)
@@ -54,12 +55,15 @@ const ManageBoards = () => {
   // Load boards from API on mount
   useEffect(() => {
     const load = async () => {
+      setLoading(true)
       try {
         const list = await BoardsAPI.list()
         setBoards(Array.isArray(list) ? list : [])
       } catch (e) {
         console.error('Failed to load boards', e)
         setBoards([])
+      } finally {
+        setLoading(false)
       }
     }
     load()
@@ -67,9 +71,13 @@ const ManageBoards = () => {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return boards
-    return boards.filter(b => (b.name || '').toLowerCase().includes(q))
-  }, [boards, search])
+    const base = q ? boards.filter(b => (b.name || '').toLowerCase().includes(q)) : boards
+    const list = [...base]
+    if (sortBy === 'newest') list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    else if (sortBy === 'oldest') list.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+    else if (sortBy === 'az') list.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+    return list
+  }, [boards, search, sortBy])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const currentPage = Math.min(page, totalPages)
@@ -80,7 +88,7 @@ const ManageBoards = () => {
   useEffect(() => {
     // Reset to first page when filters change or pageSize changes
     setPage(1)
-  }, [search, pageSize])
+  }, [search, pageSize, sortBy])
 
   const handleAdd = async (e) => {
     e.preventDefault()
@@ -196,8 +204,8 @@ const ManageBoards = () => {
       </form>
 
       {/* Controls */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-3 md:flex-row sm:items-center sm:justify-between">
+        <div className="flex sm:flex-nowrap flex-wrap items-center gap-3">
           <input
             type="text"
             value={search}
@@ -205,6 +213,16 @@ const ManageBoards = () => {
             placeholder="Search boards..."
             className="w-64 rounded-md border-gray-300 focus:ring-indigo-500 focus:border-indigo-500"
           />
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="rounded-md border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+            title="Sort by"
+          >
+            <option value="newest">Newest</option>
+            <option value="oldest">Oldest</option>
+            <option value="az">A–Z</option>
+          </select>
           <select
             value={pageSize}
             onChange={(e) => setPageSize(Number(e.target.value))}
@@ -233,7 +251,15 @@ const ManageBoards = () => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-100">
-            {pageItems.length === 0 ? (
+            {loading ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-16">
+                  <div className="flex items-center justify-center">
+                    <div className="h-10 w-10 rounded-full border-4 border-gray-200 border-t-indigo-600 animate-spin" />
+                  </div>
+                </td>
+              </tr>
+            ) : pageItems.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-4 py-8 text-center text-gray-500">No boards found</td>
               </tr>

@@ -1,7 +1,8 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import "./css/style.css";
 import "./charts/ChartjsConfig";
-import { ToastProvider } from "./components/Toast";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 // Pages
 import Login from "./pages/customer/Login";
@@ -27,7 +28,8 @@ import adminSidebarData from "./data/adminSidebarData";
 
 function App() {
   return (
-    <ToastProvider>
+    <>
+      <ToastContainer position="top-right" autoClose={3000} newestOnTop closeOnClick pauseOnHover draggable theme="light" />
       <Routes>
        {/* Root redirect */}
        <Route path="/" element={<Navigate to="/login" />} />
@@ -47,14 +49,14 @@ function App() {
 
        {/* Admin Protected Routes */}
        <Route path="/admin" element={<AdminProtectedRoute><GlobalLayout /></AdminProtectedRoute>}>
-         <Route index element={<Navigate to="dashboard" />} /> {/* Redirect /admin to /admin/dashboard */}
+         <Route index element={<Navigate to="dashboard/overview" />} /> {/* Redirect /admin to /admin/dashboard */}
          {generateRoutes(adminSidebarData)}
        </Route>
 
        {/* Catch-all */}
        <Route path="*" element={<Navigate to="/login" />} />
       </Routes>
-    </ToastProvider>
+    </>
   );
 }
 

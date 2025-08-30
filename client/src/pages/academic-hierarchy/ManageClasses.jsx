@@ -1,11 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { BoardsAPI, ClassesAPI, SubjectsAPI } from '../../api/ah'
-import { useToast } from '../../components/Toast'
+import { toast } from 'react-toastify'
 
 const ManageClasses = () => {
   const [boards, setBoards] = useState([])
   const [selectedBoardId, setSelectedBoardId] = useState('')
-  const toast = useToast()
 
   // classes list for selected board
   const [classes, setClasses] = useState([])
@@ -23,6 +22,7 @@ const ManageClasses = () => {
 
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
+  const [sortBy, setSortBy] = useState('newest') // newest | oldest | az
 
   // Overview state
   const [overviewId, setOverviewId] = useState(null)
@@ -52,12 +52,15 @@ const ManageClasses = () => {
   // Load boards on mount
   useEffect(() => {
     const loadBoards = async () => {
+      setLoadingBoards(true)
       try {
         const list = await BoardsAPI.list()
         setBoards(Array.isArray(list) ? list : [])
         if (Array.isArray(list) && list.length) setSelectedBoardId(list[0]._id || list[0].id)
       } catch (e) {
         setBoards([])
+      } finally {
+        setLoadingBoards(false)
       }
     }
     loadBoards()
@@ -67,11 +70,14 @@ const ManageClasses = () => {
   useEffect(() => {
     if (!selectedBoardId) { setClasses([]); return }
     const load = async () => {
+      setLoadingClasses(true)
       try {
         const list = await ClassesAPI.list({ boardId: selectedBoardId })
         setClasses(Array.isArray(list) ? list : [])
       } catch (e) {
         setClasses([])
+      } finally {
+        setLoadingClasses(false)
       }
     }
     load()
@@ -81,9 +87,13 @@ const ManageClasses = () => {
   const currentClasses = useMemo(() => {
     const list = classes || []
     const q = search.trim().toLowerCase()
-    if (!q) return list
-    return list.filter(c => (c.name || '').toLowerCase().includes(q))
-  }, [classes, search])
+    const base = q ? list.filter(c => (c.name || '').toLowerCase().includes(q)) : list
+    const sorted = [...base]
+    if (sortBy === 'newest') sorted.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    else if (sortBy === 'oldest') sorted.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+    else if (sortBy === 'az') sorted.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+    return sorted
+  }, [classes, search, sortBy])
 
   const totalPages = Math.max(1, Math.ceil(currentClasses.length / pageSize))
   const currentPage = Math.min(page, totalPages)
@@ -91,7 +101,7 @@ const ManageClasses = () => {
   const endIdx = startIdx + pageSize
   const pageItems = currentClasses.slice(startIdx, endIdx)
 
-  useEffect(() => { setPage(1) }, [selectedBoardId, search, pageSize])
+  useEffect(() => { setPage(1) }, [selectedBoardId, search, pageSize, sortBy])
 
   // Actions
   const handleAdd = async (e) => {
@@ -161,6 +171,10 @@ const ManageClasses = () => {
 
   const selectedBoard = boards.find(b => (b._id || b.id) === selectedBoardId) || null
 
+  // loading states
+  const [loadingBoards, setLoadingBoards] = useState(false)
+  const [loadingClasses, setLoadingClasses] = useState(false)
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -204,8 +218,8 @@ const ManageClasses = () => {
       </form>
 
       {/* Controls */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-3 md:flex-row sm:items-center sm:justify-between">
+        <div className="flex md:flex-nowrap flex-wrap items-center gap-3">
           <input
             type="text"
             value={search}
@@ -213,6 +227,16 @@ const ManageClasses = () => {
             placeholder="Search classes..."
             className="w-64 rounded-md border-gray-300 focus:ring-indigo-500 focus:border-indigo-500"
           />
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="rounded-md border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+            title="Sort by"
+          >
+            <option value="newest">Newest</option>
+            <option value="oldest">Oldest</option>
+            <option value="az">A–Z</option>
+          </select>
           <select
             value={pageSize}
             onChange={(e) => setPageSize(Number(e.target.value))}
@@ -247,7 +271,15 @@ const ManageClasses = () => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-100">
-            {pageItems.length === 0 ? (
+            {(loadingBoards || loadingClasses) ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-16">
+                  <div className="flex items-center justify-center">
+                    <div className="h-10 w-10 rounded-full border-4 border-gray-200 border-t-indigo-600 animate-spin" />
+                  </div>
+                </td>
+              </tr>
+            ) : pageItems.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-4 py-8 text-center text-gray-500">No classes found</td>
               </tr>
