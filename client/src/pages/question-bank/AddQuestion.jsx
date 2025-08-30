@@ -16,6 +16,11 @@ const AddQuestion = () => {
   const [marks, setMarks] = useState('')
   const [difficulty, setDifficulty] = useState('medium') // easy | medium | hard
   const [question, setQuestion] = useState('')
+  const [questionType, setQuestionType] = useState('plain') // plain | mcq | fib | true_false
+  const [answer, setAnswer] = useState('') // used for plain and FIB
+  const [tfAnswer, setTfAnswer] = useState('') // 'true' | 'false'
+  const [mcqOptions, setMcqOptions] = useState(['', '', '', ''])
+  const [mcqCorrectIndex, setMcqCorrectIndex] = useState(-1) // optional
 
   // loading flags
   const [loadingBoards, setLoadingBoards] = useState(false)
@@ -87,6 +92,109 @@ const AddQuestion = () => {
     setQuestion('')
     // Keep difficulty as user set it
     setMessage('')
+    setAnswer('')
+    setTfAnswer('')
+    setMcqOptions(['', '', '', ''])
+    setMcqCorrectIndex(-1)
+    // keep questionType as user last used
+  }
+
+  const renderAnswerSection = () => {
+    if (questionType === 'plain') {
+      return (
+        <div className="mt-4">
+          <label className="text-sm text-gray-600 mb-1 block">Answer (optional)</label>
+          <textarea
+            value={answer}
+            onChange={e => setAnswer(e.target.value)}
+            rows={3}
+            className="w-full rounded-md border-gray-300"
+            placeholder="Provide an answer if applicable..."
+          />
+        </div>
+      )
+    }
+    if (questionType === 'fib') {
+      return (
+        <div className="mt-4">
+          <label className="text-sm text-gray-600 mb-1 block">Correct value for blank (optional)</label>
+          <input
+            type="text"
+            value={answer}
+            onChange={e => setAnswer(e.target.value)}
+            className="w-full rounded-md border-gray-300"
+            placeholder="Type the expected answer..."
+          />
+        </div>
+      )
+    }
+    if (questionType === 'true_false') {
+      return (
+        <div className="mt-4">
+          <label className="text-sm text-gray-600 mb-1 block">Correct answer (optional)</label>
+          <div className="flex gap-4">
+            <label className="inline-flex items-center gap-2">
+              <input type="radio" name="tf" value="true" checked={tfAnswer === 'true'} onChange={() => setTfAnswer('true')} />
+              <span>True</span>
+            </label>
+            <label className="inline-flex items-center gap-2">
+              <input type="radio" name="tf" value="false" checked={tfAnswer === 'false'} onChange={() => setTfAnswer('false')} />
+              <span>False</span>
+            </label>
+            {tfAnswer && (
+              <button type="button" className="text-xs text-gray-500 underline" onClick={() => setTfAnswer('')}>Clear</button>
+            )}
+          </div>
+        </div>
+      )
+    }
+    if (questionType === 'mcq') {
+      const updateOption = (idx, val) => {
+        const arr = [...mcqOptions]
+        arr[idx] = val
+        setMcqOptions(arr)
+      }
+      const addOption = () => setMcqOptions(prev => [...prev, ''])
+      const removeOption = (idx) => {
+        const arr = mcqOptions.filter((_, i) => i !== idx)
+        setMcqOptions(arr)
+        if (mcqCorrectIndex === idx) setMcqCorrectIndex(-1)
+        if (mcqCorrectIndex > idx) setMcqCorrectIndex(mcqCorrectIndex - 1)
+      }
+      return (
+        <div className="mt-4">
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-sm text-gray-600">Options (optional)</label>
+            <button type="button" onClick={addOption} className="text-xs text-indigo-600">+ Add option</button>
+          </div>
+          <div className="space-y-2">
+            {mcqOptions.map((opt, idx) => (
+              <div key={idx} className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="mcqCorrect"
+                  checked={mcqCorrectIndex === idx}
+                  onChange={() => setMcqCorrectIndex(idx)}
+                  title="Mark as correct (optional)"
+                />
+                <input
+                  type="text"
+                  value={opt}
+                  onChange={e => updateOption(idx, e.target.value)}
+                  className="flex-1 rounded-md border-gray-300"
+                  placeholder={`Option ${idx + 1}`}
+                />
+                <button type="button" onClick={() => removeOption(idx)} className="text-xs text-gray-500 underline">Remove</button>
+              </div>
+            ))}
+          </div>
+          {mcqCorrectIndex >= 0 && mcqOptions[mcqCorrectIndex]?.trim() === '' && (
+            <p className="text-xs text-amber-600 mt-1">Marked correct option is empty.</p>
+          )}
+        </div>
+      )
+    }
+    return null
   }
 
   const handleSave = async () => {
@@ -102,6 +210,12 @@ const AddQuestion = () => {
         marks: Number(marks),
         difficulty,
         status: 1,
+        type: questionType,
+        // Optional answer structures for future backend support
+        answer: questionType === 'plain' || questionType === 'fib' ? (answer || undefined) : undefined,
+        tfAnswer: questionType === 'true_false' ? (tfAnswer || undefined) : undefined,
+        options: questionType === 'mcq' ? (mcqOptions.map(s => s.trim()).filter(Boolean) || undefined) : undefined,
+        correctIndex: questionType === 'mcq' && mcqCorrectIndex >= 0 ? mcqCorrectIndex : undefined,
       }
       await QuestionsAPI.create(payload)
       setMessage('Question saved successfully')
@@ -169,6 +283,20 @@ const AddQuestion = () => {
           </div>
 
           <div className="flex flex-col">
+            <label className="text-sm text-gray-600 mb-1">Question Type</label>
+            <select
+              value={questionType}
+              onChange={e => setQuestionType(e.target.value)}
+              className="rounded-md border-gray-300"
+            >
+              <option value="plain">Plain (Q & optional Answer)</option>
+              <option value="mcq">Multiple Choice (MCQ)</option>
+              <option value="fib">Fill in the Blanks</option>
+              <option value="true_false">True / False</option>
+            </select>
+          </div>
+
+          <div className="flex flex-col">
             <label className="text-sm text-gray-600 mb-1">Marks</label>
             <input
               type="number"
@@ -205,6 +333,8 @@ const AddQuestion = () => {
             placeholder="Write the question here..."
           />
         </div>
+
+        {renderAnswerSection()}
 
         <div className="mt-5 flex items-center gap-3">
           <button
