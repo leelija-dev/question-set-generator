@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import { BoardsAPI, ClassesAPI, SubjectsAPI, QuestionsAPI } from '../../api/ah'
 
 const AddQuestion = () => {
@@ -84,7 +84,14 @@ const AddQuestion = () => {
     load()
   }, [boardId, classId])
 
-  const canSubmit = boardId && classId && subjectId && question.trim() && String(marks).trim()
+  const canSubmit = useMemo(() => {
+    if (!(boardId && classId && subjectId && question.trim() && String(marks).trim())) return false
+    if (questionType === 'mcq') {
+      const filledOptions = mcqOptions.filter(o => o.trim() !== '').length
+      return filledOptions >= 2 && mcqCorrectIndex !== -1 && mcqOptions[mcqCorrectIndex]?.trim() !== ''
+    }
+    return true
+  }, [boardId, classId, subjectId, question, marks, questionType, mcqOptions, mcqCorrectIndex])
 
   const resetForm = () => {
     // Keep current selections for board, class, and subject
@@ -206,17 +213,29 @@ const AddQuestion = () => {
         boardId,
         classId,
         subjectId,
-        text: question.trim(),
+        questionText: question.trim(),
         marks: Number(marks),
         difficulty,
-        status: 1,
-        type: questionType,
-        // Optional answer structures for future backend support
-        answer: questionType === 'plain' || questionType === 'fib' ? (answer || undefined) : undefined,
-        tfAnswer: questionType === 'true_false' ? (tfAnswer || undefined) : undefined,
-        options: questionType === 'mcq' ? (mcqOptions.map(s => s.trim()).filter(Boolean) || undefined) : undefined,
-        correctIndex: questionType === 'mcq' && mcqCorrectIndex >= 0 ? mcqCorrectIndex : undefined,
+      };
+
+      // Handle options based on questionType
+      if (questionType === 'mcq') {
+        payload.options = mcqOptions.map(s => s.trim()).filter(Boolean);
+      } else {
+        payload.options = []; // Always send an empty array for non-MCQ types
       }
+
+      // Handle correctAnswer based on questionType
+      if (questionType === 'plain' || questionType === 'fib') {
+        payload.correctAnswer = answer.trim();
+      } else if (questionType === 'true_false') {
+        payload.correctAnswer = tfAnswer;
+      } else if (questionType === 'mcq' && mcqCorrectIndex >= 0 && mcqOptions[mcqCorrectIndex]) {
+        payload.correctAnswer = mcqOptions[mcqCorrectIndex].trim();
+      } else {
+        payload.correctAnswer = ''; // Default to empty string if no specific correct answer is set
+      }
+
       await QuestionsAPI.create(payload)
       setMessage('Question saved successfully')
       resetForm()
@@ -243,6 +262,8 @@ const AddQuestion = () => {
               className="rounded-md border-gray-300"
               disabled={loadingBoards}
             >
+              {loadingBoards && <option value="">Loading Boards...</option>}
+              {!loadingBoards && boards.length === 0 && <option value="">No boards available</option>}
               {boards.map(b => (
                 <option key={b._id || b.id} value={b._id || b.id}>{b.name}</option>
               ))}
@@ -259,6 +280,8 @@ const AddQuestion = () => {
               disabled={!boardId || loadingClasses}
             >
               {!boardId && <option value="">Select board first</option>}
+              {boardId && loadingClasses && <option value="">Loading Classes...</option>}
+              {boardId && !loadingClasses && classes.length === 0 && <option value="">No classes available</option>}
               {classes.map(c => (
                 <option key={c._id || c.id} value={c._id || c.id}>{c.name}</option>
               ))}
@@ -275,6 +298,8 @@ const AddQuestion = () => {
               disabled={!classId || loadingSubjects}
             >
               {(!classId) && <option value="">Select class first</option>}
+              {classId && loadingSubjects && <option value="">Loading Subjects...</option>}
+              {classId && !loadingSubjects && subjects.length === 0 && <option value="">No subjects available</option>}
               {subjects.map(s => (
                 <option key={s._id || s.id} value={s._id || s.id}>{s.name}</option>
               ))}

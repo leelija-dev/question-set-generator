@@ -10,6 +10,7 @@ import boardsRoutes from "./routes/boards.js";
 import classesRoutes from "./routes/classes.js";
 import subjectsRoutes from "./routes/subjects.js";
 import requestsRoutes from "./routes/requests.js";
+import questionsRoutes from "./routes/questions.js";
 
 dotenv.config();
 const app = express();
@@ -52,6 +53,7 @@ app.use("/api/boards", boardsRoutes);
 app.use("/api/classes", classesRoutes);
 app.use("/api/subjects", subjectsRoutes);
 app.use("/api/requests", requestsRoutes);
+app.use("/api/questions", questionsRoutes);
 
 // Test route
 app.get("/", (req, res) => res.send("Server is running"));

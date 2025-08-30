@@ -2,6 +2,7 @@ import express from 'express';
 import Board from '../models/Board.js';
 import ClassModel from '../models/Class.js';
 import Subject from '../models/Subject.js';
+import Question from '../models/Question.js';
 
 const router = express.Router();
 
@@ -79,10 +80,11 @@ router.delete('/:id', async (req, res) => {
     const board = await Board.findById(id);
     if (!board) return res.status(404).json({ message: 'Board not found' });
     // Cascade: delete subjects under this board, then classes, then the board
-    await Subject.deleteMany({ boardId: id });
-    await ClassModel.deleteMany({ boardId: id });
+    await Subject.deleteMany({ board: id });
+    await ClassModel.deleteMany({ board: id });
+    await Question.deleteMany({ board: id });
     await Board.findByIdAndDelete(id);
-    res.json({ ok: true, cascaded: { subjects: true, classes: true } });
+    res.json({ ok: true, cascaded: { subjects: true, classes: true, questions: true } });
   } catch (e) {
     res.status(500).json({ message: 'Failed to delete board' });
   }
