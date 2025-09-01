@@ -1,5 +1,6 @@
 import express from 'express';
 import Subject from '../models/Subject.js';
+import Question from '../models/Question.js';
 
 const router = express.Router();
 
@@ -82,9 +83,13 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const del = await Subject.findByIdAndDelete(id);
-    if (!del) return res.status(404).json({ message: 'Subject not found' });
-    res.json({ ok: true });
+    // Check exists first
+    const subject = await Subject.findById(id);
+    if (!subject) return res.status(404).json({ message: 'Subject not found' });
+    // Cascade delete questions under this subject
+    await Question.deleteMany({ subject: id });
+    await Subject.findByIdAndDelete(id);
+    res.json({ ok: true, cascaded: { questions: true } });
   } catch (e) {
     res.status(500).json({ message: 'Failed to delete subject' });
   }

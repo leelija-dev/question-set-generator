@@ -80,8 +80,8 @@ router.delete('/:id', async (req, res) => {
     const board = await Board.findById(id);
     if (!board) return res.status(404).json({ message: 'Board not found' });
     // Cascade: delete subjects under this board, then classes, then the board
-    await Subject.deleteMany({ board: id });
-    await ClassModel.deleteMany({ board: id });
+    await Subject.deleteMany({ boardId: id });
+    await ClassModel.deleteMany({ boardId: id });
     await Question.deleteMany({ board: id });
     await Board.findByIdAndDelete(id);
     res.json({ ok: true, cascaded: { subjects: true, classes: true, questions: true } });

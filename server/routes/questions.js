@@ -33,6 +33,7 @@ router.post('/', async (req, res) => {
       correctAnswer,
       difficulty,
       marks,
+      status: 'approved', // Set status to approved when creating
     });
 
     const savedQuestion = await newQuestion.save();

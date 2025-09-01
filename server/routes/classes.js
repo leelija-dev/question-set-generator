@@ -1,6 +1,7 @@
 import express from 'express';
 import ClassModel from '../models/Class.js';
 import Subject from '../models/Subject.js';
+import Question from '../models/Question.js';
 
 const router = express.Router();
 
@@ -66,10 +67,11 @@ router.delete('/:id', async (req, res) => {
     // Check exists first
     const cls = await ClassModel.findById(id);
     if (!cls) return res.status(404).json({ message: 'Class not found' });
-    // Cascade delete subjects under this class
+    // Cascade delete subjects and questions under this class
     await Subject.deleteMany({ classId: id });
+    await Question.deleteMany({ class: id });
     await ClassModel.findByIdAndDelete(id);
-    res.json({ ok: true, cascaded: { subjects: true } });
+    res.json({ ok: true, cascaded: { subjects: true, questions: true } });
   } catch (e) {
     res.status(500).json({ message: 'Failed to delete class' });
   }
