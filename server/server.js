@@ -11,6 +11,7 @@ import classesRoutes from "./routes/classes.js";
 import subjectsRoutes from "./routes/subjects.js";
 import requestsRoutes from "./routes/requests.js";
 import questionsRoutes from "./routes/questions.js";
+import questionSetsRoutes from "./routes/question-sets.js";
 
 dotenv.config();
 const app = express();
@@ -54,6 +55,7 @@ app.use("/api/classes", classesRoutes);
 app.use("/api/subjects", subjectsRoutes);
 app.use("/api/requests", requestsRoutes);
 app.use("/api/questions", questionsRoutes);
+app.use("/api/question-sets", questionSetsRoutes);
 
 // Test route
 app.get("/", (req, res) => res.send("Server is running"));

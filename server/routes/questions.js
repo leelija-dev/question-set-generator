@@ -7,10 +7,11 @@ import Subject from '../models/Subject.js';
 
 const router = express.Router();
 
+
 // Create Question
 router.post('/', async (req, res) => {
   try {
-    const { boardId, classId, subjectId, questionText, options, correctAnswer, difficulty, marks } = req.body;
+    const { boardId, classId, subjectId, questionText, options, correctAnswer, difficulty, marks, status } = req.body;
 
     if (!boardId || !classId || !subjectId || !questionText || !options || !difficulty || marks === undefined) {
       return res.status(400).json({ message: 'All fields are required' });
@@ -33,7 +34,7 @@ router.post('/', async (req, res) => {
       correctAnswer,
       difficulty,
       marks,
-      status: 'approved', // Set status to approved when creating
+      status: status !== undefined ? status : 1, // Use provided status or default to 1 (approved) // Use provided status or default to 0 (pending)
     });
 
     const savedQuestion = await newQuestion.save();

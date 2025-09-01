@@ -65,6 +65,28 @@ const AllQuestions = () => {
     setDeleteId(null);
     setDeleteQuestion(null);
   };
+
+  // Edit modal
+  const [editId, setEditId] = useState(null);
+  const [editQuestion, setEditQuestion] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const openEdit = (q) => {
+    setEditId(q._id || q.id);
+    setEditQuestion({
+      boardId: q.board?._id || q.board,
+      classId: q.class?._id || q.class,
+      subjectId: q.subject?._id || q.subject,
+      questionText: q.questionText,
+      options: q.options || [],
+      correctAnswer: q.correctAnswer,
+      difficulty: q.difficulty,
+      marks: q.marks,
+    });
+  };
+  const closeEdit = () => {
+    setEditId(null);
+    setEditQuestion(null);
+  };
   // Load boards on mount
   useEffect(() => {
     const loadBoards = async () => {
@@ -147,18 +169,61 @@ const AllQuestions = () => {
       toast.success("Question deleted successfully");
       closeDelete();
     } catch (error) {
-      toast.error("Failed to delete question");
+      toast.error("Failed to create new question");
     } finally {
       setDeleting(false);
     }
   };
+
+  // Save edited question (creates new question with pending status)
+  const handleSaveEdit = async () => {
+    if (!editQuestion) return;
+
+    // Validate required fields
+    if (
+      !editQuestion.boardId ||
+      !editQuestion.classId ||
+      !editQuestion.subjectId ||
+      !editQuestion.questionText ||
+      !editQuestion.difficulty ||
+      editQuestion.marks === undefined
+    ) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      // Create new question instead of updating existing one
+      const newQuestion = {
+        ...editQuestion,
+        status: 0, // Always set to 0 (pending) for edited questions
+      };
+
+      const savedQuestion = await QuestionsAPI.create(newQuestion);
+
+      // Add the new question to the list
+      setQuestions((prev) => [savedQuestion, ...prev]);
+
+      toast.success("New question created successfully with pending status");
+      closeEdit();
+    } catch (error) {
+      toast.error("Failed to create new question");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Load questions when filters change
 
   // Load questions when filters change
   useEffect(() => {
     const loadQuestions = async () => {
       setLoadingQuestions(true);
       try {
-        const params = {};
+        const params = {
+          status: 1, // Only get approved questions
+        };
         if (selectedBoardId) params.boardId = selectedBoardId;
         if (selectedClassId) params.classId = selectedClassId;
         if (selectedSubjectId) params.subjectId = selectedSubjectId;
@@ -205,6 +270,7 @@ const AllQuestions = () => {
   // Animations
   const previewEnter = useEnterAnimation(!!previewId);
   const deleteEnter = useEnterAnimation(!!deleteId);
+  const editEnter = useEnterAnimation(!!editId);
 
   // Helper to get difficulty color
   const getDifficultyColor = (diff) => {
@@ -223,12 +289,10 @@ const AllQuestions = () => {
   // Helper to get status color
   const getStatusColor = (status) => {
     switch (status) {
-      case "approved":
-        return "bg-green-100 text-green-800";
-      case "pending":
-        return "bg-yellow-100 text-yellow-800";
-      case "rejected":
-        return "bg-red-100 text-red-800";
+      case 1:
+        return "bg-green-100 text-green-800"; // approved
+      case 0:
+        return "bg-yellow-100 text-yellow-800"; // pending
       default:
         return "bg-gray-100 text-gray-700";
     }
@@ -316,8 +380,8 @@ const AllQuestions = () => {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-gray-800">All Questions</h1>
         <div className="text-sm text-gray-600">
-          Total Questions:{" "}
-          <span className="font-semibold text-gray-800">
+          Approved Questions:{" "}
+          <span className="font-semibold text-green-600">
             {questions.length}
           </span>
         </div>
@@ -403,8 +467,8 @@ const AllQuestions = () => {
 
       {/* Stats and controls */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="text-sm text-gray-600">
-          Showing {pageItems.length} of {filteredQuestions.length} questions
+      <div className="text-sm text-gray-600">
+          Showing {pageItems.length} of {filteredQuestions.length} approved questions
           {selectedBoardId &&
             ` • Board: ${
               boards.find((b) => (b._id || b.id) === selectedBoardId)?.name ||
@@ -488,10 +552,10 @@ const AllQuestions = () => {
               </tr>
             ) : pageItems.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                                <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                   {questions.length === 0
-                    ? "No questions found"
-                    : "No questions match your filters"}
+                    ? "No approved questions found"
+                    : "No approved questions match your filters"}
                 </td>
               </tr>
             ) : (
@@ -524,7 +588,11 @@ const AllQuestions = () => {
                         q.status
                       )}`}
                     >
-                      {q.status}
+                      {q.status === 1
+                        ? "Approved"
+                        : q.status === 0
+                        ? "Pending"
+                        : "Unknown"}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-gray-600">
@@ -545,6 +613,20 @@ const AllQuestions = () => {
                           <path d="M12 5c-7.633 0-11 6.5-11 7s3.367 7 11 7 11-6.5 11-7-3.367-7-11-7zm0 12c-2.761 0-5-2.239-5-5s2.239-5 5-5 5 2.239 5 5-2.239 5-5 5zm0-8a3 3 0 100 6 3 3 0 000-6z" />
                         </svg>
                         Preview
+                      </button>
+                      <button
+                        onClick={() => openEdit(q)}
+                        className="inline-flex items-center gap-1 rounded-md border border-blue-300 px-2 py-1 text-sm text-blue-700 hover:bg-blue-50"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="currentColor"
+                          className="w-4 h-4"
+                        >
+                          <path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        Edit
                       </button>
                       <button
                         onClick={() => openDelete(q)}
@@ -593,6 +675,357 @@ const AllQuestions = () => {
           >
             Next
           </button>
+        </div>
+      )}
+
+      {/* Edit Question Modal */}
+      {editId && editQuestion && (
+        <div className="fixed inset-0 z-50">
+          <div
+            className={`absolute inset-0 bg-black/40 transition-opacity duration-200 ${
+              editEnter ? "opacity-100" : "opacity-0"
+            }`}
+            onClick={closeEdit}
+          />
+          <div className="absolute inset-0 flex items-center justify-center p-4">
+            <div
+              className={`w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-lg bg-white shadow-xl border border-gray-200 transition-all duration-200 ${
+                editEnter
+                  ? "opacity-100 scale-100 translate-y-0"
+                  : "opacity-0 scale-95 translate-y-2"
+              }`}
+            >
+              <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Edit Question (Creates New Version)
+                </h3>
+                <button
+                  onClick={closeEdit}
+                  className="text-gray-500 hover:text-gray-700"
+                  aria-label="Close"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="px-5 py-5 space-y-6">
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <div className="flex items-start">
+                    <svg
+                      className="w-5 h-5 text-yellow-600 mt-0.5 mr-3"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                    <div>
+                      <p className="text-sm font-medium text-yellow-800">
+                        Note
+                      </p>
+                      <p className="text-sm text-yellow-700">
+                        This will create a new question with "pending" status
+                        instead of updating the existing one.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Board Selection */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="flex flex-col">
+                    <label className="text-sm text-gray-600 mb-1">
+                      Board <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={editQuestion.boardId}
+                      onChange={(e) => {
+                        const newBoardId = e.target.value;
+                        setEditQuestion((prev) => ({
+                          ...prev,
+                          boardId: newBoardId,
+                          classId: "", // Reset class when board changes
+                          subjectId: "", // Reset subject when board changes
+                        }));
+                      }}
+                      className="rounded-md border-gray-300"
+                      required
+                    >
+                      <option value="">Select Board</option>
+                      {boards.map((b) => (
+                        <option key={b._id || b.id} value={b._id || b.id}>
+                          {b.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col">
+                    <label className="text-sm text-gray-600 mb-1">
+                      Class <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={editQuestion.classId}
+                      onChange={(e) => {
+                        const newClassId = e.target.value;
+                        setEditQuestion((prev) => ({
+                          ...prev,
+                          classId: newClassId,
+                          subjectId: "", // Reset subject when class changes
+                        }));
+                      }}
+                      className="rounded-md border-gray-300"
+                      disabled={!editQuestion.boardId}
+                      required
+                    >
+                      <option value="">
+                        {!editQuestion.boardId
+                          ? "Select board first"
+                          : "Select Class"}
+                      </option>
+                      {classes
+                        .filter(
+                          (c) =>
+                            editQuestion.boardId &&
+                            (c.boardId === editQuestion.boardId ||
+                              c.board?._id === editQuestion.boardId ||
+                              c.board === editQuestion.boardId)
+                        )
+                        .map((c) => (
+                          <option key={c._id || c.id} value={c._id || c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col">
+                    <label className="text-sm text-gray-600 mb-1">
+                      Subject <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={editQuestion.subjectId}
+                      onChange={(e) =>
+                        setEditQuestion((prev) => ({
+                          ...prev,
+                          subjectId: e.target.value,
+                        }))
+                      }
+                      className="rounded-md border-gray-300"
+                      disabled={!editQuestion.classId}
+                      required
+                    >
+                      <option value="">
+                        {!editQuestion.classId
+                          ? "Select class first"
+                          : "Select Subject"}
+                      </option>
+                      {subjects
+                        .filter(
+                          (s) =>
+                            editQuestion.classId &&
+                            (s.classId === editQuestion.classId ||
+                              s.class?._id === editQuestion.classId ||
+                              s.class === editQuestion.classId)
+                        )
+                        .map((s) => (
+                          <option key={s._id || s.id} value={s._id || s.id}>
+                            {s.name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Question Text */}
+                <div>
+                  <label className="text-sm text-gray-600 mb-1 block">
+                    Question Text <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={editQuestion.questionText}
+                    onChange={(e) =>
+                      setEditQuestion((prev) => ({
+                        ...prev,
+                        questionText: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-md border-gray-300"
+                    rows={3}
+                    placeholder="Enter your question..."
+                    required
+                  />
+                </div>
+
+                {/* Options */}
+                <div>
+                  <label className="text-sm text-gray-600 mb-1 block">
+                    Options
+                  </label>
+                  <div className="space-y-2">
+                    {(editQuestion.options || []).map((option, index) => (
+                      <div key={index} className="flex items-center gap-2">
+                        <span className="font-medium text-gray-700 w-6">
+                          {String.fromCharCode(65 + index)}.
+                        </span>
+                        <input
+                          type="text"
+                          value={option}
+                          onChange={(e) => {
+                            const newOptions = [
+                              ...(editQuestion.options || []),
+                            ];
+                            newOptions[index] = e.target.value;
+                            setEditQuestion((prev) => ({
+                              ...prev,
+                              options: newOptions,
+                            }));
+                          }}
+                          className="flex-1 rounded-md border-gray-300"
+                          placeholder={`Option ${String.fromCharCode(
+                            65 + index
+                          )}`}
+                        />
+                        <button
+                          onClick={() => {
+                            const newOptions = (
+                              editQuestion.options || []
+                            ).filter((_, i) => i !== index);
+                            setEditQuestion((prev) => ({
+                              ...prev,
+                              options: newOptions,
+                            }));
+                          }}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => {
+                        const newOptions = [
+                          ...(editQuestion.options || []),
+                          "",
+                        ];
+                        setEditQuestion((prev) => ({
+                          ...prev,
+                          options: newOptions,
+                        }));
+                      }}
+                      className="text-blue-600 hover:text-blue-700 text-sm"
+                    >
+                      + Add Option
+                    </button>
+                  </div>
+                </div>
+
+                {/* Correct Answer */}
+                <div>
+                  <label className="text-sm text-gray-600 mb-1 block">
+                    Correct Answer
+                  </label>
+                  <input
+                    type="text"
+                    value={editQuestion.correctAnswer || ""}
+                    onChange={(e) =>
+                      setEditQuestion((prev) => ({
+                        ...prev,
+                        correctAnswer: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-md border-gray-300"
+                    placeholder="Enter the correct answer..."
+                  />
+                </div>
+
+                {/* Difficulty and Marks */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex flex-col">
+                    <label className="text-sm text-gray-600 mb-1">
+                      Difficulty <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={editQuestion.difficulty}
+                      onChange={(e) =>
+                        setEditQuestion((prev) => ({
+                          ...prev,
+                          difficulty: e.target.value,
+                        }))
+                      }
+                      className="rounded-md border-gray-300"
+                      required
+                    >
+                      <option value="">Select Difficulty</option>
+                      <option value="easy">Easy</option>
+                      <option value="medium">Medium</option>
+                      <option value="hard">Hard</option>
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col">
+                    <label className="text-sm text-gray-600 mb-1">
+                      Marks <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      value={editQuestion.marks}
+                      onChange={(e) =>
+                        setEditQuestion((prev) => ({
+                          ...prev,
+                          marks: Number(e.target.value),
+                        }))
+                      }
+                      className="rounded-md border-gray-300"
+                      min="0"
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="px-5 py-4 border-t border-gray-200 flex items-center justify-end gap-2">
+                <button
+                  onClick={closeEdit}
+                  className="px-4 py-2 text-sm rounded-md border border-gray-300"
+                  disabled={saving}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveEdit}
+                  disabled={saving}
+                  className="px-4 py-2 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {saving && (
+                    <svg
+                      className="animate-spin h-4 w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                  )}
+                  {saving ? "Creating..." : "Create New Question"}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -674,26 +1107,34 @@ const AllQuestions = () => {
                   </div>
                 </div>
 
-                                {/* Options */}
-                                {(() => {
+                {/* Options */}
+                {(() => {
                   // Check if we have options
-                  const hasOptions = previewQuestion.options && previewQuestion.options.length > 0;
-                  
+                  const hasOptions =
+                    previewQuestion.options &&
+                    previewQuestion.options.length > 0;
+
                   // Check if this is a true/false question (empty options but correct answer exists)
-                  const isTrueFalse = !hasOptions && previewQuestion.correctAnswer && 
-                    (previewQuestion.correctAnswer.toLowerCase() === 'true' || 
-                     previewQuestion.correctAnswer.toLowerCase() === 'false');
-                  
+                  const isTrueFalse =
+                    !hasOptions &&
+                    previewQuestion.correctAnswer &&
+                    (previewQuestion.correctAnswer.toLowerCase() === "true" ||
+                      previewQuestion.correctAnswer.toLowerCase() === "false");
+
                   if (hasOptions) {
                     // Regular MCQ or stored true/false with options
                     return (
                       <div>
                         <h4 className="text-lg font-medium text-gray-900 mb-3">
                           {previewQuestion.options.length === 2 &&
-                          ((previewQuestion.options[0]?.toLowerCase() === "true" &&
-                            previewQuestion.options[1]?.toLowerCase() === "false") ||
-                            (previewQuestion.options[0]?.toLowerCase() === "false" &&
-                            previewQuestion.options[1]?.toLowerCase() === "true"))
+                          ((previewQuestion.options[0]?.toLowerCase() ===
+                            "true" &&
+                            previewQuestion.options[1]?.toLowerCase() ===
+                              "false") ||
+                            (previewQuestion.options[0]?.toLowerCase() ===
+                              "false" &&
+                              previewQuestion.options[1]?.toLowerCase() ===
+                                "true"))
                             ? "True/False Options:"
                             : "Options:"}
                         </h4>
@@ -702,12 +1143,12 @@ const AllQuestions = () => {
                     );
                   } else if (isTrueFalse) {
                     // True/False question without stored options - generate them
-                    const trueFalseOptions = ['True', 'False'];
+                    const trueFalseOptions = ["True", "False"];
                     const questionWithOptions = {
                       ...previewQuestion,
-                      options: trueFalseOptions
+                      options: trueFalseOptions,
                     };
-                    
+
                     return (
                       <div>
                         <h4 className="text-lg font-medium text-gray-900 mb-3">
@@ -731,7 +1172,7 @@ const AllQuestions = () => {
                       </div>
                     );
                   }
-                  
+
                   return null;
                 })()}
 
@@ -750,7 +1191,11 @@ const AllQuestions = () => {
                         previewQuestion.status
                       )}`}
                     >
-                      {previewQuestion.status}
+                      {previewQuestion.status === 1
+                        ? "Approved"
+                        : previewQuestion.status === 0
+                        ? "Pending"
+                        : "Unknown"}
                     </p>
                   </div>
                   <div className="bg-gray-50 rounded-md p-4 md:col-span-2">

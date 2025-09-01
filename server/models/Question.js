@@ -43,9 +43,9 @@ const QuestionSchema = new mongoose.Schema({
     required: true,
   },
   status: {
-    type: String,
-    enum: ['pending', 'approved', 'rejected'],
-    default: 'pending',
+    type: Number,
+    enum: [0, 1], // 0 = pending, 1 = approved
+    default: 0, // Default to pending
   },
 }, { timestamps: true });
 
