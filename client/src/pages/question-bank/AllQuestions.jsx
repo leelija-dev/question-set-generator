@@ -175,9 +175,9 @@ const AllQuestions = () => {
     }
   };
 
-  // Save edited question (creates new question with pending status)
+  // Save edited question (updates existing question with approved status)
   const handleSaveEdit = async () => {
-    if (!editQuestion) return;
+    if (!editQuestion || !editId) return;
 
     // Validate required fields
     if (
@@ -194,21 +194,25 @@ const AllQuestions = () => {
 
     setSaving(true);
     try {
-      // Create new question instead of updating existing one
-      const newQuestion = {
+      // Update existing question instead of creating new one
+      const updatedQuestion = {
         ...editQuestion,
-        status: 0, // Always set to 0 (pending) for edited questions
+        status: 1, // Set to 1 (approved) when updating
       };
 
-      const savedQuestion = await QuestionsAPI.create(newQuestion);
+      const savedQuestion = await QuestionsAPI.update(editId, updatedQuestion);
 
-      // Add the new question to the list
-      setQuestions((prev) => [savedQuestion, ...prev]);
+      // Update the question in the list
+      setQuestions((prev) =>
+        prev.map((q) =>
+          (q._id || q.id) === editId ? savedQuestion : q
+        )
+      );
 
-      toast.success("New question created successfully with pending status");
+      toast.success("Question updated successfully with approved status");
       closeEdit();
     } catch (error) {
-      toast.error("Failed to create new question");
+      toast.error("Failed to update question");
     } finally {
       setSaving(false);
     }
@@ -697,7 +701,7 @@ const AllQuestions = () => {
             >
               <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-gray-900">
-                  Edit Question (Creates New Version)
+                  Edit Question
                 </h3>
                 <button
                   onClick={closeEdit}
@@ -709,26 +713,25 @@ const AllQuestions = () => {
               </div>
 
               <div className="px-5 py-5 space-y-6">
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <div className="flex items-start">
                     <svg
-                      className="w-5 h-5 text-yellow-600 mt-0.5 mr-3"
+                      className="w-5 h-5 text-blue-600 mt-0.5 mr-3"
                       fill="currentColor"
                       viewBox="0 0 20 20"
                     >
                       <path
                         fillRule="evenodd"
-                        d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                        d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
                         clipRule="evenodd"
                       />
                     </svg>
                     <div>
-                      <p className="text-sm font-medium text-yellow-800">
+                      <p className="text-sm font-medium text-blue-800">
                         Note
                       </p>
-                      <p className="text-sm text-yellow-700">
-                        This will create a new question with "pending" status
-                        instead of updating the existing one.
+                      <p className="text-sm text-blue-700">
+                        This will update the existing question and set its status to "approved".
                       </p>
                     </div>
                   </div>
@@ -1021,7 +1024,7 @@ const AllQuestions = () => {
                       ></path>
                     </svg>
                   )}
-                  {saving ? "Creating..." : "Create New Question"}
+                  {saving ? "Updating..." : "Update Question"}
                 </button>
               </div>
             </div>
