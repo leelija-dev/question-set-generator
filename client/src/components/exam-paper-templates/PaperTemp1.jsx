@@ -24,17 +24,7 @@ const PaperTemp1 = ({ previewData, subjects, handleEditQuestion }) => {
       </div>
 
       {/* Instructions Table */}
-      <div className="border-2 border-black">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b-2 border-black">
-              <th className="text-left p-3 font-bold border-r-2 border-black" style={{ width: '15%' }}>Q. No.</th>
-              <th className="text-left p-3 font-bold border-r-2 border-black" style={{ width: '70%' }}>Nature of questions</th>
-              <th className="text-left p-3 font-bold" style={{ width: '15%' }}>Marks</th>
-            </tr>
-          </thead>
-        </table>
-      </div>
+      
 
       {/* Question Groups by Subject/Topic */}
       {previewData.questionGroups.map((group, groupIndex) => {
@@ -115,16 +105,18 @@ const PaperTemp1 = ({ previewData, subjects, handleEditQuestion }) => {
                               {/* Marks and Edit Button */}
                               <div className="ml-4 text-right">
                                 <div className="flex items-center gap-2">
-                                  <button
-                                    onClick={() => handleEditQuestion(questionData)}
-                                    className="text-blue-600 hover:text-blue-800 p-1 rounded"
-                                    title="Edit Question"
-                                  >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                                    </svg>
-                                  </button>
-                                  <span className="border border-black px-2 py-1 text-sm font-bold">
+                                  {handleEditQuestion && (
+                                    <button
+                                      onClick={() => handleEditQuestion(questionData)}
+                                      className="text-blue-600 hover:text-blue-800 p-1 rounded"
+                                      title="Edit Question"
+                                    >
+                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                      </svg>
+                                    </button>
+                                  )}
+                                  <span className=" px-2 py-1 text-sm font-bold">
                                     [{marks}]
                                   </span>
                                 </div>

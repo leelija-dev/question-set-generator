@@ -51,6 +51,7 @@ const GeneratedSets = () => {
   const [viewSet, setViewSet] = useState(null);
   const [viewQuestions, setViewQuestions] = useState([]);
   const [loadingView, setLoadingView] = useState(false);
+  const [selectedViewTemplate, setSelectedViewTemplate] = useState(paperTemplates[0]); // Add template selection for view modal
 
   // Delete modal
   const [deleteId, setDeleteId] = useState(null);
@@ -500,105 +501,105 @@ const GeneratedSets = () => {
     setPreviewData(null);
   };
 
-    // Handle final generation
-    const handleGenerateFinal = async () => {
-      setGenerating(true);
-      try {
-        // Validate required fields
-        if (!generateForm.examName?.trim()) {
-          toast.error("Exam name is required");
-          return;
-        }
-        if (!generateForm.boardId || !generateForm.classId || !generateForm.subjectId) {
-          toast.error("Board, Class, and Subject are required");
-          return;
-        }
-        if (!generateForm.examDate) {
-          toast.error("Exam date is required");
-          return;
-        }
-        if (!generateForm.examTime?.trim()) {
-          toast.error("Exam time is required");
-          return;
-        }
-  
-        // Transform questionGroups to match backend expected format
-        const transformedQuestionGroups = [];
-  
-        // Group questions by marks to create backend-compatible structure
-        const questionsByMarks = {};
-  
-        generateForm.questionGroups.forEach(group => {
-          group.questions.forEach(question => {
-            const key = question.marks;
-            if (!questionsByMarks[key]) {
-              questionsByMarks[key] = {
-                marks: question.marks,
-                totalQuestions: 0,
-                difficulty: { easy: 0, medium: 0, hard: 0 }
-              };
-            }
-            questionsByMarks[key].totalQuestions++;
-            questionsByMarks[key].difficulty[question.difficulty]++;
-          });
-        });
-  
-        // Convert to array format expected by backend
-        transformedQuestionGroups.push(...Object.values(questionsByMarks));
-  
-        // Validate that we have questions to generate
-        if (transformedQuestionGroups.length === 0) {
-          toast.error("Please select at least one question before generating the set");
-          return;
-        }
-  
-        // Prepare the data for the backend
-        const questionSetData = {
-          examName: generateForm.examName.trim(),
-          boardId: generateForm.boardId,
-          classId: generateForm.classId,
-          subjectId: generateForm.subjectId,
-          examDate: generateForm.examDate,
-          examTime: generateForm.examTime.trim(),
-          examDuration: generateForm.examDuration,
-          questionGroups: transformedQuestionGroups, // Use transformed structure
-          totalQuestions: generateForm.questionGroups.reduce(
-            (sum, group) => sum + group.questions.length,
-            0
-          ),
-        };
-  
-        // Save to database
-        const savedSet = await QuestionSetsAPI.create(questionSetData);
-  
-        // Add to the list
-        setGeneratedSets((prev) => [savedSet, ...prev]);
-  
-        toast.success(
-          `Question set "${generateForm.examName}" generated and saved successfully!`
-        );
-  
-        // Reset form and close modals
-        setGenerateForm({
-          boardId: "",
-          classId: "",
-          subjectId: "",
-          examName: "",
-          examDate: "",
-          examTime: "",
-          examDuration: "3", // Default 3 hours
-          questionGroups: [],
-        });
-        setShowGenerateModal(false);
-        setShowPreview(false);
-        setPreviewData(null);
-      } catch (error) {
-        console.error("Question set generation error:", error);
-        toast.error(error.message || "Failed to generate question set");
-      } finally {
-        setGenerating(false);
+  // Handle final generation
+  const handleGenerateFinal = async () => {
+    setGenerating(true);
+    try {
+      // Validate required fields
+      if (!generateForm.examName?.trim()) {
+        toast.error("Exam name is required");
+        return;
       }
-    };
+      if (!generateForm.boardId || !generateForm.classId || !generateForm.subjectId) {
+        toast.error("Board, Class, and Subject are required");
+        return;
+      }
+      if (!generateForm.examDate) {
+        toast.error("Exam date is required");
+        return;
+      }
+      if (!generateForm.examTime?.trim()) {
+        toast.error("Exam time is required");
+        return;
+      }
+
+      // Transform questionGroups to match backend expected format
+      const transformedQuestionGroups = [];
+
+      // Group questions by marks to create backend-compatible structure
+      const questionsByMarks = {};
+
+      generateForm.questionGroups.forEach(group => {
+        group.questions.forEach(question => {
+          const key = question.marks;
+          if (!questionsByMarks[key]) {
+            questionsByMarks[key] = {
+              marks: question.marks,
+              totalQuestions: 0,
+              difficulty: { easy: 0, medium: 0, hard: 0 }
+            };
+          }
+          questionsByMarks[key].totalQuestions++;
+          questionsByMarks[key].difficulty[question.difficulty]++;
+        });
+      });
+
+      // Convert to array format expected by backend
+      transformedQuestionGroups.push(...Object.values(questionsByMarks));
+
+      // Validate that we have questions to generate
+      if (transformedQuestionGroups.length === 0) {
+        toast.error("Please select at least one question before generating the set");
+        return;
+      }
+
+      // Prepare the data for the backend
+      const questionSetData = {
+        examName: generateForm.examName.trim(),
+        boardId: generateForm.boardId,
+        classId: generateForm.classId,
+        subjectId: generateForm.subjectId,
+        examDate: generateForm.examDate,
+        examTime: generateForm.examTime.trim(),
+        examDuration: generateForm.examDuration,
+        questionGroups: transformedQuestionGroups, // Use transformed structure
+        totalQuestions: generateForm.questionGroups.reduce(
+          (sum, group) => sum + group.questions.length,
+          0
+        ),
+      };
+
+      // Save to database
+      const savedSet = await QuestionSetsAPI.create(questionSetData);
+
+      // Add to the list
+      setGeneratedSets((prev) => [savedSet, ...prev]);
+
+      toast.success(
+        `Question set "${generateForm.examName}" generated and saved successfully!`
+      );
+
+      // Reset form and close modals
+      setGenerateForm({
+        boardId: "",
+        classId: "",
+        subjectId: "",
+        examName: "",
+        examDate: "",
+        examTime: "",
+        examDuration: "3", // Default 3 hours
+        questionGroups: [],
+      });
+      setShowGenerateModal(false);
+      setShowPreview(false);
+      setPreviewData(null);
+    } catch (error) {
+      console.error("Question set generation error:", error);
+      toast.error(error.message || "Failed to generate question set");
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   // Close view modal
   const closeView = () => {
@@ -853,6 +854,113 @@ const GeneratedSets = () => {
       toast.error("Failed to save edited question");
     } finally {
       setSavingEdit(false);
+    }
+  };
+
+
+  // Download question set template
+  const handleDownloadTemplate = async (format) => {
+    try {
+      const element = document.querySelector('.template-content');
+      const examName = viewSet?.examName || 'Question_Set';
+
+      switch (format) {
+        case 'pdf':
+          // Use html2canvas and jsPDF for PDF generation
+          const html2canvas = (await import('html2canvas')).default;
+          const jsPDF = (await import('jspdf')).default;
+
+          const canvas = await html2canvas(element, {
+            scale: 2,
+            useCORS: true,
+            allowTaint: true,
+            height: element.scrollHeight,
+            windowHeight: element.scrollHeight
+          });
+
+          const imgData = canvas.toDataURL('image/png');
+          const pdf = new jsPDF('p', 'mm', 'a4');
+          
+          const pdfWidth = pdf.internal.pageSize.getWidth();
+          const pdfHeight = pdf.internal.pageSize.getHeight();
+          const imgWidth = pdfWidth;
+          const imgHeight = (canvas.height * imgWidth) / canvas.width;
+          
+          let heightLeft = imgHeight;
+          let position = 0;
+          
+          // Add first page
+          pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+          heightLeft -= pdfHeight;
+          
+          // Add additional pages if needed
+          while (heightLeft >= 0) {
+            position = heightLeft - imgHeight;
+            pdf.addPage();
+            pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+            heightLeft -= pdfHeight;
+          }
+
+          pdf.save(`${examName}.pdf`);
+          break;
+
+        case 'png':
+          const html2canvasPng = (await import('html2canvas')).default;
+          const canvasPng = await html2canvasPng(element, {
+            scale: 2,
+            useCORS: true,
+            allowTaint: true
+          });
+
+          canvasPng.toBlob((blob) => {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${examName}.png`;
+            a.click();
+            URL.revokeObjectURL(url);
+          });
+          break;
+
+        case 'excel':
+          // Create Excel data from template content
+          const XLSX = (await import('xlsx')).default;
+          const excelData = [
+            ['Exam Name', 'Board', 'Class', 'Subject', 'Date', 'Time'],
+            [
+              viewSet?.examName || '',
+              viewSet?.board?.name || '',
+              viewSet?.class?.name || '',
+              viewSet?.subject?.name || '',
+              viewSet?.examDate || '',
+              viewSet?.examTime || ''
+            ],
+            [], // Empty row
+            ['Question No.', 'Question Text', 'Options', 'Correct Answer', 'Difficulty', 'Marks']
+          ];
+
+          viewQuestions.forEach((question, index) => {
+            excelData.push([
+              `Q${index + 1}`,
+              question.questionText || '',
+              question.options ? question.options.join(' | ') : '',
+              question.correctAnswer || '',
+              question.difficulty || '',
+              question.marks || ''
+            ]);
+          });
+
+          const ws = XLSX.utils.aoa_to_sheet(excelData);
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, 'Questions');
+          XLSX.writeFile(wb, `${examName}.xlsx`);
+          break;
+      }
+
+      toast.success(`${format.toUpperCase()} downloaded successfully!`);
+    } catch (error) {
+      console.error("Error downloading template:", error);
+      toast.error("Failed to download template");
     }
   };
 
@@ -1167,20 +1275,74 @@ const GeneratedSets = () => {
           />
           <div className="absolute inset-0 flex items-center justify-center p-4">
             <div
-              className={`w-full max-w-6xl max-h-[95vh] overflow-y-auto rounded-lg bg-white shadow-xl border border-gray-200 transition-all duration-200 ${viewModalEnter ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-2"
+              className={`w-full max-w-6xl max-h-[95vh] overflow-y-auto rounded-lg bg-white shadow-xl border border-gray-200 transition-all duration-200 ${viewModalEnter
+                ? "opacity-100 scale-100 translate-y-0"
+                : "opacity-0 scale-95 translate-y-2"
                 }`}
             >
               <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-gray-900">
                   Question Set Preview
                 </h3>
-                <button
-                  onClick={closeView}
-                  className="text-gray-500 hover:text-gray-700"
-                  aria-label="Close"
-                >
-                  ✕
-                </button>
+                <div className="flex items-center gap-3">
+                  {/* Download Buttons */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleDownloadTemplate('pdf')}
+                      className="px-3 py-2 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 flex items-center gap-2"
+                      title="Download PDF"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      PDF
+                    </button>
+                    <button
+                      onClick={() => handleDownloadTemplate('excel')}
+                      className="px-3 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 flex items-center gap-2"
+                      title="Download Excel"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Excel
+                    </button>
+                    <button
+                      onClick={() => handleDownloadTemplate('png')}
+                      className="px-3 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 flex items-center gap-2"
+                      title="Download PNG"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      PNG
+                    </button>
+                  </div>
+                  <button
+                    onClick={closeView}
+                    className="text-gray-500 hover:text-gray-700"
+                    aria-label="Close"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+
+              {/* Template Selection */}
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h4 className="text-lg font-medium text-gray-900 mb-2">Select Template:</h4>
+                <div className="flex gap-4">
+                  {paperTemplates.map((template, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setSelectedViewTemplate(template)}
+                      className={`px-4 py-2 rounded-md ${selectedViewTemplate === template ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700"
+                        }`}
+                    >
+                      {template.name}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="px-6 py-6">
@@ -1189,195 +1351,26 @@ const GeneratedSets = () => {
                     <div className="h-10 w-10 rounded-full border-4 border-gray-200 border-t-indigo-600 animate-spin" />
                   </div>
                 ) : (
-                  <div className="space-y-6">
-                    {/* Exam Header */}
-                    <div className="text-center border-b-2 border-gray-300 pb-6">
-                      <h1 className="text-2xl font-bold text-gray-900 mb-2">
-                        {viewSet.examName}
-                      </h1>
-                      <div className="flex justify-between items-center text-sm text-gray-600">
-                        <div className="text-left">
-                          <p><strong>Board:</strong> {viewSet.board?.name || "Unknown"}</p>
-                          <p><strong>Class:</strong> {viewSet.class?.name || "Unknown"}</p>
-                          <p><strong>Subject:</strong> {viewSet.subject?.name || "Unknown"}</p>
-                        </div>
-                        <div className="text-right">
-                          <p><strong>Duration:</strong> {viewSet.examDuration} Hours</p>
-                          <p><strong>Date:</strong> {viewSet.examDate}</p>
-                          <p><strong>Total Marks:</strong> {viewSet.totalQuestions}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Question Groups Summary */}
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-3">Question Distribution</h3>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {viewSet.questionGroups?.map((group, index) => (
-                          <div key={index} className="bg-white rounded-md p-3 border border-blue-200">
-                            <p className="text-sm text-gray-600">Group {index + 1}</p>
-                            <p className="text-lg font-bold text-blue-600">{group.marks} Mark{group.marks !== 1 ? 's' : ''}</p>
-                            <p className="text-sm text-gray-700">{group.totalQuestions} Questions</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Questions */}
-                    <div className="space-y-8">
-                      {viewQuestions.length === 0 ? (
-                        <div className="text-center text-gray-500 py-8">
-                          No questions found in this set
-                        </div>
-                      ) : (
-                        viewQuestions.map((question, index) => (
-                          <div key={question._id || question.id} className="border border-gray-200 rounded-lg p-6 bg-white">
-                            {/* Question Header */}
-                            <div className="flex items-center justify-between mb-4">
-                              <div className="flex items-center gap-4">
-                                <span className="bg-blue-600 text-white text-lg font-bold px-4 py-2 rounded-full">
-                                  {index + 1}
-                                </span>
-                                <div className="flex gap-4 text-sm text-gray-600">
-                                  <span className="bg-gray-100 px-3 py-1 rounded">
-                                    {question.difficulty}
-                                  </span>
-                                  <span className="bg-green-100 px-3 py-1 rounded">
-                                    {question.marks} Mark{question.marks !== 1 ? 's' : ''}
-                                  </span>
-                                </div>
-                              </div>
-                              <button
-                                onClick={() => handleEditQuestion(question)}
-                                className="text-blue-600 hover:text-blue-800 text-sm"
-                              >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                                </svg>
-                                Edit
-                              </button>
-                            </div>
-
-                            {/* Question Text */}
-                            <div className="mb-6">
-                              <p className="text-lg text-gray-900 leading-relaxed">
-                                {question.questionText}
-                              </p>
-                            </div>
-
-                            {/* Options */}
-                            {(() => {
-                              // Check if we have options
-                              const hasOptions = question.options && question.options.length > 0;
-
-                              // Check if this is a true/false question (empty options but correct answer exists)
-                              const isTrueFalse = !hasOptions && question.correctAnswer &&
-                                (question.correctAnswer.toLowerCase() === "true" ||
-                                  question.correctAnswer.toLowerCase() === "false");
-
-                              if (hasOptions) {
-                                // Regular MCQ or stored true/false with options
-                                return (
-                                  <div className="grid grid-cols-2 gap-4">
-                                    {question.options.map((option, optIndex) => (
-                                      <div
-                                        key={optIndex}
-                                        className={`p-4 rounded-lg border-2 transition-all ${question.correctAnswer &&
-                                          question.correctAnswer.toLowerCase() === option.toLowerCase()
-                                          ? "border-green-500 bg-green-50"
-                                          : "border-gray-200 hover:border-gray-300"
-                                          }`}
-                                      >
-                                        <div className="flex items-center">
-                                          <span className={`font-bold text-lg mr-3 ${question.correctAnswer &&
-                                            question.correctAnswer.toLowerCase() === option.toLowerCase()
-                                            ? "text-green-700"
-                                            : "text-gray-700"
-                                            }`}>
-                                            {String.fromCharCode(97 + optIndex)}.
-                                          </span>
-                                          <span className={`text-base ${question.correctAnswer &&
-                                            question.correctAnswer.toLowerCase() === option.toLowerCase()
-                                            ? "text-green-800 font-semibold"
-                                            : "text-gray-800"
-                                            }`}>
-                                            {option}
-                                          </span>
-                                          {question.correctAnswer &&
-                                            question.correctAnswer.toLowerCase() === option.toLowerCase() && (
-                                              <span className="ml-auto">
-                                                <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                </svg>
-                                              </span>
-                                            )}
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                );
-                              } else if (isTrueFalse) {
-                                // True/False question without stored options - generate them
-                                const trueFalseOptions = ["True", "False"];
-                                return (
-                                  <div className="grid grid-cols-2 gap-4">
-                                    {trueFalseOptions.map((option, optIndex) => (
-                                      <div
-                                        key={optIndex}
-                                        className={`p-4 rounded-lg border-2 transition-all ${question.correctAnswer &&
-                                          question.correctAnswer.toLowerCase() === option.toLowerCase()
-                                          ? "border-green-500 bg-green-50"
-                                          : "border-gray-200 hover:border-gray-300"
-                                          }`}
-                                      >
-                                        <div className="flex items-center">
-                                          <span className={`font-bold text-lg mr-3 ${question.correctAnswer &&
-                                            question.correctAnswer.toLowerCase() === option.toLowerCase()
-                                            ? "text-green-700"
-                                            : "text-gray-700"
-                                            }`}>
-                                            {String.fromCharCode(97 + optIndex)}.
-                                          </span>
-                                          <span className={`text-base ${question.correctAnswer &&
-                                            question.correctAnswer.toLowerCase() === option.toLowerCase()
-                                            ? "text-green-800 font-semibold"
-                                            : "text-gray-800"
-                                            }`}>
-                                            {option}
-                                          </span>
-                                          {question.correctAnswer &&
-                                            question.correctAnswer.toLowerCase() === option.toLowerCase() && (
-                                              <span className="ml-auto">
-                                                <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                </svg>
-                                              </span>
-                                            )}
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                );
-                              } else if (question.correctAnswer) {
-                                // Other question types with direct answer
-                                return (
-                                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                                    <p className="text-sm font-medium text-green-800 mb-2">Correct Answer:</p>
-                                    <p className="text-green-900 font-semibold">{question.correctAnswer}</p>
-                                  </div>
-                                );
-                              }
-
-                              return null;
-                            })()}
-                          </div>
-                        ))
-                      )}
-                    </div>
-
-                    {/* Footer */}
-                    <div className="text-center text-gray-500 text-sm pt-6 border-t border-gray-200">
-                      <p>Generated on {new Date(viewSet.createdAt).toLocaleDateString()}</p>
+                  <div className="flex-1">
+                    <div className="template-content">
+                      {React.createElement(selectedViewTemplate.component, {
+                        previewData: {
+                          totalMarks: viewQuestions.reduce((sum, q) => sum + (q.marks || 0), 0),
+                          totalQuestions: viewQuestions.length,
+                          examName: viewSet?.examName,
+                          examDate: viewSet?.examDate,
+                          examTime: viewSet?.examTime,
+                          examDuration: viewSet?.examDuration,
+                          subjectId: viewSet?.subject?._id,
+                          questionGroups: [{
+                            id: 'A',
+                            name: 'Section A',
+                            questions: viewQuestions
+                          }]
+                        },
+                        subjects,
+                        handleEditQuestion: null
+                      })}
                     </div>
                   </div>
                 )}
@@ -1881,11 +1874,13 @@ const GeneratedSets = () => {
 
               {/* Dynamic Template Rendering */}
               <div className="flex-1">
-                {React.createElement(selectedTemplate.component, {
-                  previewData,
-                  subjects,
-                  handleEditQuestion
-                })}
+                <div className="template-content">
+                  {React.createElement(selectedTemplate.component, {
+                    previewData,
+                    subjects,
+                    handleEditQuestion
+                  })}
+                </div>
               </div>
             </div>
 
@@ -1894,7 +1889,7 @@ const GeneratedSets = () => {
               <div className="flex justify-end space-x-3">
                 <button
                   onClick={closePreview}
-                  className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+                  className="px-4 py-2 text-sm rounded-md border border-gray-300"
                 >
                   Close Preview
                 </button>
