@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { BoardsAPI, ClassesAPI, SubjectsAPI, QuestionsAPI, QuestionSetsAPI } from "../../api/ah";
 import { toast } from "react-toastify";
+import { paperTemplates } from "../../components/exam-paper-templates";
 
 // Simple enter animation helper to animate modals
 const useEnterAnimation = (open) => {
@@ -72,6 +73,7 @@ const GeneratedSets = () => {
     examName: "",
     examDate: "",
     examTime: "",
+    examDuration: "3", // Default 3 hours
     questionGroups: [],
   });
 
@@ -82,6 +84,20 @@ const GeneratedSets = () => {
   const [showPreview, setShowPreview] = useState(false);
   const [previewData, setPreviewData] = useState(null);
   const [previewModalEnter, setPreviewModalEnter] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState(paperTemplates[0]); // Add template selection state
+
+  // Edit question state
+  const [editingQuestion, setEditingQuestion] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editModalEnter, setEditModalEnter] = useState(false);
+  const [editForm, setEditForm] = useState({
+    questionText: '',
+    options: ['', '', '', ''],
+    correctAnswer: '',
+    difficulty: 'medium',
+    marks: 1
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
 
   // Load boards on mount
   useEffect(() => {
@@ -179,6 +195,7 @@ const GeneratedSets = () => {
         examName: "",
         examDate: "",
         examTime: "",
+        examDuration: "3", // Default 3 hours
         questionGroups: [{
           id: 'A',
           name: 'Group A',
@@ -483,85 +500,105 @@ const GeneratedSets = () => {
     setPreviewData(null);
   };
 
-  // Handle final generation
-  const handleGenerateFinal = async () => {
-    setGenerating(true);
-    try {
-      // Transform questionGroups to match backend expected format
-      const transformedQuestionGroups = [];
-
-      // Group questions by marks to create backend-compatible structure
-      const questionsByMarks = {};
-
-      generateForm.questionGroups.forEach(group => {
-        group.questions.forEach(question => {
-          const key = question.marks;
-          if (!questionsByMarks[key]) {
-            questionsByMarks[key] = {
-              marks: question.marks,
-              totalQuestions: 0,
-              difficulty: { easy: 0, medium: 0, hard: 0 }
-            };
-          }
-          questionsByMarks[key].totalQuestions++;
-          questionsByMarks[key].difficulty[question.difficulty]++;
+    // Handle final generation
+    const handleGenerateFinal = async () => {
+      setGenerating(true);
+      try {
+        // Validate required fields
+        if (!generateForm.examName?.trim()) {
+          toast.error("Exam name is required");
+          return;
+        }
+        if (!generateForm.boardId || !generateForm.classId || !generateForm.subjectId) {
+          toast.error("Board, Class, and Subject are required");
+          return;
+        }
+        if (!generateForm.examDate) {
+          toast.error("Exam date is required");
+          return;
+        }
+        if (!generateForm.examTime?.trim()) {
+          toast.error("Exam time is required");
+          return;
+        }
+  
+        // Transform questionGroups to match backend expected format
+        const transformedQuestionGroups = [];
+  
+        // Group questions by marks to create backend-compatible structure
+        const questionsByMarks = {};
+  
+        generateForm.questionGroups.forEach(group => {
+          group.questions.forEach(question => {
+            const key = question.marks;
+            if (!questionsByMarks[key]) {
+              questionsByMarks[key] = {
+                marks: question.marks,
+                totalQuestions: 0,
+                difficulty: { easy: 0, medium: 0, hard: 0 }
+              };
+            }
+            questionsByMarks[key].totalQuestions++;
+            questionsByMarks[key].difficulty[question.difficulty]++;
+          });
         });
-      });
-
-      // Convert to array format expected by backend
-      transformedQuestionGroups.push(...Object.values(questionsByMarks));
-
-      // Prepare the data for the backend
-      const questionSetData = {
-        examName: generateForm.examName,
-        boardId: generateForm.boardId,
-        classId: generateForm.classId,
-        subjectId: generateForm.subjectId,
-        examDate: generateForm.examDate,
-        examTime: generateForm.examTime,
-        questionGroups: transformedQuestionGroups, // Use transformed structure
-        totalQuestions: generateForm.questionGroups.reduce(
-          (sum, group) => sum + group.questions.length,
-          0
-        ),
-      };
-
-      // Validate that we have questions to generate
-      if (transformedQuestionGroups.length === 0) {
-        toast.error("Please select at least one question before generating the set");
-        return;
+  
+        // Convert to array format expected by backend
+        transformedQuestionGroups.push(...Object.values(questionsByMarks));
+  
+        // Validate that we have questions to generate
+        if (transformedQuestionGroups.length === 0) {
+          toast.error("Please select at least one question before generating the set");
+          return;
+        }
+  
+        // Prepare the data for the backend
+        const questionSetData = {
+          examName: generateForm.examName.trim(),
+          boardId: generateForm.boardId,
+          classId: generateForm.classId,
+          subjectId: generateForm.subjectId,
+          examDate: generateForm.examDate,
+          examTime: generateForm.examTime.trim(),
+          examDuration: generateForm.examDuration,
+          questionGroups: transformedQuestionGroups, // Use transformed structure
+          totalQuestions: generateForm.questionGroups.reduce(
+            (sum, group) => sum + group.questions.length,
+            0
+          ),
+        };
+  
+        // Save to database
+        const savedSet = await QuestionSetsAPI.create(questionSetData);
+  
+        // Add to the list
+        setGeneratedSets((prev) => [savedSet, ...prev]);
+  
+        toast.success(
+          `Question set "${generateForm.examName}" generated and saved successfully!`
+        );
+  
+        // Reset form and close modals
+        setGenerateForm({
+          boardId: "",
+          classId: "",
+          subjectId: "",
+          examName: "",
+          examDate: "",
+          examTime: "",
+          examDuration: "3", // Default 3 hours
+          questionGroups: [],
+        });
+        setShowGenerateModal(false);
+        setShowPreview(false);
+        setPreviewData(null);
+      } catch (error) {
+        console.error("Question set generation error:", error);
+        toast.error(error.message || "Failed to generate question set");
+      } finally {
+        setGenerating(false);
       }
-
-      // Save to database
-      const savedSet = await QuestionSetsAPI.create(questionSetData);
-
-      // Add to the list
-      setGeneratedSets((prev) => [savedSet, ...prev]);
-
-      toast.success(
-        `Question set "${generateForm.examName}" generated and saved successfully!`
-      );
-
-      // Reset form and close modals
-      setGenerateForm({
-        boardId: "",
-        classId: "",
-        subjectId: "",
-        examName: "",
-        examDate: "",
-        examTime: "",
-        questionGroups: [],
-      });
-      setShowGenerateModal(false);
-      setShowPreview(false);
-      setPreviewData(null);
-    } catch (error) {
-      console.error("Question set generation error:", error);
-      toast.error(error.message || "Failed to generate question set");
-    } finally {
-      setGenerating(false);
-    }
-  };
+    };
 
   // Close view modal
   const closeView = () => {
@@ -614,6 +651,7 @@ const GeneratedSets = () => {
       examName: "",
       examDate: "",
       examTime: "",
+      examDuration: "3", // Default 3 hours
       questionGroups: [{ id: 'A', name: 'Group A', totalMarks: 20, questions: [] }],
     });
     setShowPreview(false);
@@ -674,29 +712,29 @@ const GeneratedSets = () => {
             <div
               key={index}
               className={`p-3 rounded-lg border-2 transition-all ${isCorrect
-                  ? "border-green-500 bg-green-50 shadow-sm"
-                  : isTrueFalse
-                    ? "border-blue-200 bg-blue-50 hover:border-blue-300"
-                    : "border-gray-200 hover:border-gray-300"
+                ? "border-green-500 bg-green-50 shadow-sm"
+                : isTrueFalse
+                  ? "border-blue-200 bg-blue-50 hover:border-blue-300"
+                  : "border-gray-200 hover:border-gray-300"
                 }`}
             >
               <div className="flex items-center">
                 <span
                   className={`font-medium text-lg mr-3 ${isCorrect
-                      ? "text-green-700"
-                      : isTrueFalse
-                        ? "text-blue-700"
-                        : "text-gray-700"
+                    ? "text-green-700"
+                    : isTrueFalse
+                      ? "text-blue-700"
+                      : "text-gray-700"
                     }`}
                 >
                   {String.fromCharCode(65 + index)}.
                 </span>
                 <span
                   className={`text-base ${isCorrect
-                      ? "text-green-800 font-semibold"
-                      : isTrueFalse
-                        ? "text-blue-800"
-                        : "text-gray-800"
+                    ? "text-green-800 font-semibold"
+                    : isTrueFalse
+                      ? "text-blue-800"
+                      : "text-gray-800"
                     }`}
                 >
                   {option}
@@ -722,6 +760,100 @@ const GeneratedSets = () => {
         })}
       </div>
     );
+  };
+
+  // Edit question
+  const handleEditQuestion = (question) => {
+    setEditingQuestion(question);
+    setEditForm({
+      questionText: question.questionText,
+      options: question.options || ['', '', '', ''],
+      correctAnswer: question.correctAnswer,
+      difficulty: question.difficulty || 'medium',
+      marks: question.marks || 1
+    });
+    setShowEditModal(true);
+    setTimeout(() => setEditModalEnter(true), 10);
+  };
+
+  // Close edit modal
+  const closeEditModal = () => {
+    setEditModalEnter(false);
+    setTimeout(() => {
+      setShowEditModal(false);
+      setEditingQuestion(null);
+    }, 200);
+  };
+
+  // Save edited question
+  const handleSaveEdit = async () => {
+    setSavingEdit(true);
+    try {
+      // Validate required fields
+      if (!editForm.questionText.trim()) {
+        toast.error("Question text is required");
+        return;
+      }
+      if (!editForm.correctAnswer.trim()) {
+        toast.error("Correct answer is required");
+        return;
+      }
+      if (!generateForm.boardId || !generateForm.classId || !generateForm.subjectId) {
+        toast.error("Board, Class, and Subject are required");
+        return;
+      }
+
+      // Create new question with pending status
+      const newQuestionData = {
+        boardId: generateForm.boardId,
+        classId: generateForm.classId,
+        subjectId: generateForm.subjectId,
+        questionText: editForm.questionText.trim(),
+        options: editForm.options.filter(opt => opt.trim() !== ''),
+        correctAnswer: editForm.correctAnswer.trim(),
+        difficulty: editForm.difficulty,
+        marks: editForm.marks,
+        status: 0 // Pending status
+      };
+
+      const newQuestion = await QuestionsAPI.create(newQuestionData);
+
+      // Update the question in preview data
+      const updatedPreviewData = { ...previewData };
+      updatedPreviewData.questionGroups = updatedPreviewData.questionGroups.map(group => ({
+        ...group,
+        questions: group.questions.map(q =>
+          q.id === editingQuestion.id
+            ? { ...newQuestion, id: q.id, questionId: newQuestion._id }
+            : q
+        )
+      }));
+
+      setPreviewData(updatedPreviewData);
+
+      // Update the question in generateForm as well
+      const updatedGroups = generateForm.questionGroups.map(group => ({
+        ...group,
+        questions: group.questions.map(q =>
+          q.id === editingQuestion.id
+            ? { ...newQuestion, id: q.id, questionId: newQuestion._id }
+            : q
+        )
+      }));
+
+      setGenerateForm(prev => ({
+        ...prev,
+        questionGroups: updatedGroups
+      }));
+
+      toast.success("Question edited and saved as new question with pending status");
+      closeEditModal();
+    } catch (error) {
+      console.error("Error creating edited question:", error);
+      toast.error("Failed to save edited question");
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   return (
@@ -973,7 +1105,7 @@ const GeneratedSets = () => {
                           fill="currentColor"
                           className="w-4 h-4 text-gray-700"
                         >
-                          <path d="M12 5c-7.633 0-11 6.5-11 7s3.367 7 11 7 11-6.5 11-7-3.367-7-11-7zm0 12c-2.761 0-5-2.239-5-5s2.239-5 5-5 5 2.239 5 5-2.239 5-5 5zm0-8a3 3 0 100 6 3 3 0 000-6z" />
+                          <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" />
                         </svg>
                         View
                       </button>
@@ -989,9 +1121,7 @@ const GeneratedSets = () => {
                         >
                           <path
                             fillRule="evenodd"
-                            d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0015 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                            clipRule="evenodd"
-                          />
+                            d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0015 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" />
                         </svg>
                         Delete
                       </button>
@@ -1072,7 +1202,7 @@ const GeneratedSets = () => {
                           <p><strong>Subject:</strong> {viewSet.subject?.name || "Unknown"}</p>
                         </div>
                         <div className="text-right">
-                          <p><strong>Time:</strong> {viewSet.examTime}</p>
+                          <p><strong>Duration:</strong> {viewSet.examDuration} Hours</p>
                           <p><strong>Date:</strong> {viewSet.examDate}</p>
                           <p><strong>Total Marks:</strong> {viewSet.totalQuestions}</p>
                         </div>
@@ -1084,7 +1214,7 @@ const GeneratedSets = () => {
                       <h3 className="text-lg font-semibold text-gray-900 mb-3">Question Distribution</h3>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         {viewSet.questionGroups?.map((group, index) => (
-                          <div key={index} className="bg-white rounded-md p-3 border">
+                          <div key={index} className="bg-white rounded-md p-3 border border-blue-200">
                             <p className="text-sm text-gray-600">Group {index + 1}</p>
                             <p className="text-lg font-bold text-blue-600">{group.marks} Mark{group.marks !== 1 ? 's' : ''}</p>
                             <p className="text-sm text-gray-700">{group.totalQuestions} Questions</p>
@@ -1095,8 +1225,6 @@ const GeneratedSets = () => {
 
                     {/* Questions */}
                     <div className="space-y-8">
-                      <h3 className="text-xl font-bold text-gray-900 text-center">Questions</h3>
-
                       {viewQuestions.length === 0 ? (
                         <div className="text-center text-gray-500 py-8">
                           No questions found in this set
@@ -1119,6 +1247,15 @@ const GeneratedSets = () => {
                                   </span>
                                 </div>
                               </div>
+                              <button
+                                onClick={() => handleEditQuestion(question)}
+                                className="text-blue-600 hover:text-blue-800 text-sm"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                </svg>
+                                Edit
+                              </button>
                             </div>
 
                             {/* Question Text */}
@@ -1146,23 +1283,23 @@ const GeneratedSets = () => {
                                       <div
                                         key={optIndex}
                                         className={`p-4 rounded-lg border-2 transition-all ${question.correctAnswer &&
-                                            question.correctAnswer.toLowerCase() === option.toLowerCase()
-                                            ? "border-green-500 bg-green-50"
-                                            : "border-gray-200 hover:border-gray-300"
+                                          question.correctAnswer.toLowerCase() === option.toLowerCase()
+                                          ? "border-green-500 bg-green-50"
+                                          : "border-gray-200 hover:border-gray-300"
                                           }`}
                                       >
                                         <div className="flex items-center">
                                           <span className={`font-bold text-lg mr-3 ${question.correctAnswer &&
-                                              question.correctAnswer.toLowerCase() === option.toLowerCase()
-                                              ? "text-green-700"
-                                              : "text-gray-700"
+                                            question.correctAnswer.toLowerCase() === option.toLowerCase()
+                                            ? "text-green-700"
+                                            : "text-gray-700"
                                             }`}>
                                             {String.fromCharCode(97 + optIndex)}.
                                           </span>
                                           <span className={`text-base ${question.correctAnswer &&
-                                              question.correctAnswer.toLowerCase() === option.toLowerCase()
-                                              ? "text-green-800 font-semibold"
-                                              : "text-gray-800"
+                                            question.correctAnswer.toLowerCase() === option.toLowerCase()
+                                            ? "text-green-800 font-semibold"
+                                            : "text-gray-800"
                                             }`}>
                                             {option}
                                           </span>
@@ -1188,23 +1325,23 @@ const GeneratedSets = () => {
                                       <div
                                         key={optIndex}
                                         className={`p-4 rounded-lg border-2 transition-all ${question.correctAnswer &&
-                                            question.correctAnswer.toLowerCase() === option.toLowerCase()
-                                            ? "border-green-500 bg-green-50"
-                                            : "border-gray-200 hover:border-gray-300"
+                                          question.correctAnswer.toLowerCase() === option.toLowerCase()
+                                          ? "border-green-500 bg-green-50"
+                                          : "border-gray-200 hover:border-gray-300"
                                           }`}
                                       >
                                         <div className="flex items-center">
                                           <span className={`font-bold text-lg mr-3 ${question.correctAnswer &&
-                                              question.correctAnswer.toLowerCase() === option.toLowerCase()
-                                              ? "text-green-700"
-                                              : "text-gray-700"
+                                            question.correctAnswer.toLowerCase() === option.toLowerCase()
+                                            ? "text-green-700"
+                                            : "text-gray-700"
                                             }`}>
                                             {String.fromCharCode(97 + optIndex)}.
                                           </span>
                                           <span className={`text-base ${question.correctAnswer &&
-                                              question.correctAnswer.toLowerCase() === option.toLowerCase()
-                                              ? "text-green-800 font-semibold"
-                                              : "text-gray-800"
+                                            question.correctAnswer.toLowerCase() === option.toLowerCase()
+                                            ? "text-green-800 font-semibold"
+                                            : "text-gray-800"
                                             }`}>
                                             {option}
                                           </span>
@@ -1270,8 +1407,8 @@ const GeneratedSets = () => {
           <div className="absolute inset-0 flex items-center justify-center p-4">
             <div
               className={`w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-lg bg-white shadow-xl border border-gray-200 transition-all duration-200 ${modalEnter
-                  ? "opacity-100 scale-100 translate-y-0"
-                  : "opacity-0 scale-95 translate-y-2"
+                ? "opacity-100 scale-100 translate-y-0"
+                : "opacity-0 scale-95 translate-y-2"
                 }`}
             >
               <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
@@ -1451,6 +1588,26 @@ const GeneratedSets = () => {
                       required
                     />
                   </div>
+
+                  <div className="flex flex-col">
+                    <label className="text-sm text-gray-600 mb-1">
+                      Exam Duration <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={generateForm.examDuration}
+                      onChange={(e) =>
+                        setGenerateForm((prev) => ({
+                          ...prev,
+                          examDuration: e.target.value,
+                        }))
+                      }
+                      className="rounded-md border-gray-300"
+                      placeholder="e.g., 3"
+                      required
+                    />
+                  </div>
                 </div>
 
                 {/* Question Pattern */}
@@ -1545,8 +1702,8 @@ const GeneratedSets = () => {
                                 <div className="flex justify-between items-center mb-2">
                                   <span className="text-sm font-medium text-gray-700">Group Progress</span>
                                   <span className={`text-sm font-semibold ${group.questions.reduce((sum, q) => sum + q.marks, 0) === group.totalMarks
-                                      ? 'text-green-600'
-                                      : 'text-blue-600'
+                                    ? 'text-green-600'
+                                    : 'text-blue-600'
                                     }`}>
                                     {group.questions.reduce((sum, q) => sum + q.marks, 0)} / {group.totalMarks} marks
                                   </span>
@@ -1554,8 +1711,8 @@ const GeneratedSets = () => {
                                 <div className="w-full bg-gray-200 rounded-full h-2">
                                   <div
                                     className={`h-2 rounded-full ${group.questions.reduce((sum, q) => sum + q.marks, 0) === group.totalMarks
-                                        ? 'bg-green-600'
-                                        : 'bg-blue-600'
+                                      ? 'bg-green-600'
+                                      : 'bg-blue-600'
                                       }`}
                                     style={{
                                       width: `${Math.min(100, (group.questions.reduce((sum, q) => sum + q.marks, 0) / group.totalMarks) * 100)}%`
@@ -1580,9 +1737,9 @@ const GeneratedSets = () => {
                                             group.questions.reduce((sum, q) => sum + q.marks, 0) + availableGroup.marks > group.totalMarks
                                           }
                                           className={`w-full px-2 py-1 text-xs rounded ${availableGroup.byDifficulty[difficulty] > 0 &&
-                                              group.questions.reduce((sum, q) => sum + q.marks, 0) + availableGroup.marks <= group.totalMarks
-                                              ? 'bg-blue-600 text-white hover:bg-blue-700'
-                                              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                            group.questions.reduce((sum, q) => sum + q.marks, 0) + availableGroup.marks <= group.totalMarks
+                                            ? 'bg-blue-600 text-white hover:bg-blue-700'
+                                            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                                             }`}
                                         >
                                           {difficulty.charAt(0).toUpperCase() + difficulty.slice(1)} ({availableGroup.byDifficulty[difficulty]})
@@ -1683,7 +1840,9 @@ const GeneratedSets = () => {
           />
           <div className="absolute inset-0 flex items-center justify-center p-4">
             <div
-              className={`bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto transition-all duration-200 ${previewModalEnter ? "opacity-100 scale-100" : "opacity-0 scale-95"
+              className={`bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto transition-all duration-200 ${previewModalEnter
+                ? "opacity-100 scale-100"
+                : "opacity-0 scale-95"
                 }`}
             >
               {/* Preview Header */}
@@ -1697,218 +1856,57 @@ const GeneratedSets = () => {
                     className="text-gray-400 hover:text-gray-600 transition-colors"
                   >
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
                 </div>
               </div>
 
-              {/* Preview Content */}
-              <div className="p-6 space-y-6">
-                {/* Exam Header */}
-                <div className="text-center border-b-2 border-gray-300 pb-4">
-                  <h1 className="text-2xl font-bold text-gray-900 mb-2">
-                    {previewData.examName}
-                  </h1>
-                  <div className="text-gray-600 space-y-1">
-                    <p>Board: {boards.find(b => b._id === previewData.boardId)?.name}</p>
-                    <p>Class: {classes.find(c => c._id === previewData.classId)?.name}</p>
-                    <p>Subject: {subjects.find(s => s._id === previewData.subjectId)?.name}</p>
-                    <p>Date: {previewData.examDate} | Time: {previewData.examTime}</p>
-                    <p>Total Questions: {previewData.totalQuestions} | Total Marks: {previewData.totalMarks}</p>
-                  </div>
-                </div>
-
-                {/* Question Groups */}
-                {previewData.questionGroups.map((group, groupIndex) => (
-                  <div key={group.id} className="border border-gray-200 rounded-lg p-4">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-3">
-                      {group.name} - Total Marks: {group.totalMarks}
-                    </h3>
-
-                    {group.questions.length === 0 ? (
-                      <p className="text-gray-500 italic">No questions selected for this group</p>
-                    ) : (
-                      <div className="space-y-4">
-                        {group.questions.map((questionData, qIndex) => (
-                          <div key={questionData.id || qIndex} className="border-l-4 border-blue-500 pl-4 bg-gray-50 p-4 rounded-r-lg">
-                            {/* Question Header */}
-                            <div className="flex items-start justify-between mb-3">
-                              <span className="font-medium text-gray-900 text-lg">
-                                Q{groupIndex + 1}.{qIndex + 1} ({questionData.marks} marks)
-                              </span>
-                              <div className="flex items-center space-x-3">
-                                <span className="text-sm text-gray-500 capitalize bg-gray-200 px-2 py-1 rounded">
-                                  {questionData.difficulty}
-                                </span>
-                                <span className="text-sm text-gray-500 bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                                  Selected Question
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Question Text */}
-                            <div className="mb-4">
-                              <p className="text-lg text-gray-900 leading-relaxed">
-                                {questionData.questionText}
-                              </p>
-                            </div>
-
-                            {/* Options */}
-                            {(() => {
-                              // Check if we have options
-                              const hasOptions = questionData.options && questionData.options.length > 0;
-
-                              // Check if this is a true/false question (empty options but correct answer exists)
-                              const isTrueFalse = !hasOptions && questionData.correctAnswer &&
-                                (questionData.correctAnswer.toLowerCase() === "true" ||
-                                  questionData.correctAnswer.toLowerCase() === "false");
-
-                              if (hasOptions) {
-                                // Regular MCQ or stored true/false with options
-                                return (
-                                  <div className="grid grid-cols-2 gap-4">
-                                    {questionData.options.map((option, optIndex) => (
-                                      <div
-                                        key={optIndex}
-                                        className={`p-4 rounded-lg border-2 transition-all ${questionData.correctAnswer &&
-                                            questionData.correctAnswer.toLowerCase() === option.toLowerCase()
-                                            ? "border-green-500 bg-green-50"
-                                            : "border-gray-200 hover:border-gray-300"
-                                          }`}
-                                      >
-                                        <div className="flex items-center">
-                                          <span className={`font-bold text-lg mr-3 ${questionData.correctAnswer &&
-                                              questionData.correctAnswer.toLowerCase() === option.toLowerCase()
-                                              ? "text-green-700"
-                                              : "text-gray-700"
-                                            }`}>
-                                            {String.fromCharCode(97 + optIndex)}.
-                                          </span>
-                                          <span className={`text-base ${questionData.correctAnswer &&
-                                              questionData.correctAnswer.toLowerCase() === option.toLowerCase()
-                                              ? "text-green-800 font-semibold"
-                                              : "text-gray-800"
-                                            }`}>
-                                            {option}
-                                          </span>
-                                          {questionData.correctAnswer &&
-                                            questionData.correctAnswer.toLowerCase() === option.toLowerCase() && (
-                                              <span className="ml-auto">
-                                                <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                </svg>
-                                              </span>
-                                            )}
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                );
-                              } else if (isTrueFalse) {
-                                // True/False question without stored options - generate them
-                                const trueFalseOptions = ["True", "False"];
-                                return (
-                                  <div className="grid grid-cols-2 gap-4">
-                                    {trueFalseOptions.map((option, optIndex) => (
-                                      <div
-                                        key={optIndex}
-                                        className={`p-4 rounded-lg border-2 transition-all ${questionData.correctAnswer &&
-                                            questionData.correctAnswer.toLowerCase() === option.toLowerCase()
-                                            ? "border-green-500 bg-green-50"
-                                            : "border-gray-200 hover:border-gray-300"
-                                          }`}
-                                      >
-                                        <div className="flex items-center">
-                                          <span className={`font-bold text-lg mr-3 ${questionData.correctAnswer &&
-                                              questionData.correctAnswer.toLowerCase() === option.toLowerCase()
-                                              ? "text-green-700"
-                                              : "text-gray-700"
-                                            }`}>
-                                            {String.fromCharCode(97 + optIndex)}.
-                                          </span>
-                                          <span className={`text-base ${questionData.correctAnswer &&
-                                              questionData.correctAnswer.toLowerCase() === option.toLowerCase()
-                                              ? "text-green-800 font-semibold"
-                                              : "text-gray-800"
-                                            }`}>
-                                            {option}
-                                          </span>
-                                          {questionData.correctAnswer &&
-                                            questionData.correctAnswer.toLowerCase() === option.toLowerCase() && (
-                                              <span className="ml-auto">
-                                                <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                </svg>
-                                              </span>
-                                            )}
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                );
-                              } else if (questionData.correctAnswer) {
-                                // Other question types with direct answer
-                                return (
-                                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                                    <p className="text-sm font-medium text-green-800 mb-2">Correct Answer:</p>
-                                    <p className="text-green-900 font-semibold">{questionData.correctAnswer}</p>
-                                  </div>
-                                );
-                              }
-
-                              return null;
-                            })()}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-
-                {/* Summary */}
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <h3 className="text-lg font-semibold text-blue-900 mb-2">Question Set Summary</h3>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="font-medium text-blue-800">Total Groups:</span>
-                      <span className="ml-2 text-blue-700">{previewData.questionGroups.length}</span>
-                    </div>
-                    <div>
-                      <span className="font-medium text-blue-800">Total Questions:</span>
-                      <span className="ml-2 text-blue-700">{previewData.totalQuestions}</span>
-                    </div>
-                    <div>
-                      <span className="font-medium text-blue-800">Total Marks:</span>
-                      <span className="ml-2 text-blue-700">{previewData.totalMarks}</span>
-                    </div>
-                    <div>
-                      <span className="font-medium text-blue-800">Exam Duration:</span>
-                      <span className="ml-2 text-blue-700">{previewData.examTime}</span>
-                    </div>
-                  </div>
+              {/* Template Selection */}
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h4 className="text-lg font-medium text-gray-900 mb-2">Select Template:</h4>
+                <div className="flex gap-4">
+                  {paperTemplates.map((template, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setSelectedTemplate(template)}
+                      className={`px-4 py-2 rounded-md ${selectedTemplate === template ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700"
+                        }`}
+                    >
+                      {template.name}
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              {/* Preview Footer */}
-              <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4">
-                <div className="flex justify-end space-x-3">
-                  <button
-                    onClick={closePreview}
-                    className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
-                  >
-                    Close Preview
-                  </button>
-                  <button
-                    onClick={() => {
-                      closePreview();
-                      handleGenerateFinal();
-                    }}
-                    className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                  >
-                    Generate Now
-                  </button>
-                </div>
+              {/* Dynamic Template Rendering */}
+              <div className="flex-1">
+                {React.createElement(selectedTemplate.component, {
+                  previewData,
+                  subjects,
+                  handleEditQuestion
+                })}
+              </div>
+            </div>
+
+            {/* Preview Footer */}
+            <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4">
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={closePreview}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+                >
+                  Close Preview
+                </button>
+                <button
+                  onClick={() => {
+                    closePreview();
+                    handleGenerateFinal();
+                  }}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                >
+                  Generate Now
+                </button>
               </div>
             </div>
           </div>
@@ -1926,8 +1924,8 @@ const GeneratedSets = () => {
           <div className="absolute inset-0 flex items-center justify-center p-4">
             <div
               className={`w-full max-w-md rounded-lg bg-white shadow-xl border border-gray-200 transition-all duration-200 ${deleteModalEnter
-                  ? "opacity-100 scale-100 translate-y-0"
-                  : "opacity-0 scale-95 translate-y-2"
+                ? "opacity-100 scale-100 translate-y-0"
+                : "opacity-0 scale-95 translate-y-2"
                 }`}
             >
               <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
@@ -1949,9 +1947,9 @@ const GeneratedSets = () => {
                     <svg
                       className="h-6 w-6 text-red-600"
                       fill="none"
+                      stroke="currentColor"
                       viewBox="0 0 24 24"
                       strokeWidth="1.5"
-                      stroke="currentColor"
                     >
                       <path
                         strokeLinecap="round"
@@ -2017,6 +2015,170 @@ const GeneratedSets = () => {
                     </svg>
                   )}
                   {deleting ? "Deleting..." : "Delete"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {showEditModal && editingQuestion && (
+        <div className="fixed inset-0 z-50">
+          <div
+            className={`absolute inset-0 bg-black/40 transition-opacity duration-200 ${editModalEnter ? "opacity-100" : "opacity-0"
+              }`}
+            onClick={() => setShowEditModal(false)}
+          />
+          <div className="absolute inset-0 flex items-center justify-center p-4">
+            <div
+              className={`w-full max-w-md rounded-lg bg-white shadow-xl border border-gray-200 transition-all duration-200 ${editModalEnter
+                ? "opacity-100 scale-100 translate-y-0"
+                : "opacity-0 scale-95 translate-y-2"
+                }`}
+            >
+              <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Edit Question
+                </h3>
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                  aria-label="Close"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="px-5 py-5 space-y-6">
+                <div className="flex flex-col">
+                  <label className="text-sm text-gray-600 mb-1">
+                    Question Text <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={editForm.questionText}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, questionText: e.target.value }))}
+                    className="rounded-md border-gray-300"
+                    required
+                  />
+                </div>
+
+                <div className="flex flex-col">
+                  <label className="text-sm text-gray-600 mb-1">
+                    Options <span className="text-red-500">*</span>
+                  </label>
+                  {editForm.options.map((option, index) => (
+                    <div key={index} className="flex items-center gap-2 mb-2">
+                      <input
+                        type="text"
+                        value={option}
+                        onChange={(e) => setEditForm((prev) => ({
+                          ...prev,
+                          options: prev.options.map((o, i) => i === index ? e.target.value : o)
+                        }))}
+                        className="rounded-md border-gray-300"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setEditForm((prev) => ({
+                          ...prev,
+                          options: prev.options.filter((o, i) => i !== index)
+                        }))}
+                        className="px-2 py-1 text-sm bg-red-600 text-white rounded-md hover:bg-red-700"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setEditForm((prev) => ({ ...prev, options: [...prev.options, ''] }))}
+                    className="px-2 py-1 text-sm bg-green-600 text-white rounded-md hover:bg-green-700"
+                  >
+                    Add Option
+                  </button>
+                </div>
+
+                <div className="flex flex-col">
+                  <label className="text-sm text-gray-600 mb-1">
+                    Correct Answer <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.correctAnswer}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, correctAnswer: e.target.value }))}
+                    className="rounded-md border-gray-300"
+                    required
+                  />
+                </div>
+
+                <div className="flex flex-col">
+                  <label className="text-sm text-gray-600 mb-1">
+                    Difficulty <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={editForm.difficulty}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, difficulty: e.target.value }))}
+                    className="rounded-md border-gray-300"
+                    required
+                  >
+                    <option value="easy">Easy</option>
+                    <option value="medium">Medium</option>
+                    <option value="hard">Hard</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-col">
+                  <label className="text-sm text-gray-600 mb-1">
+                    Marks <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={editForm.marks}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, marks: parseInt(e.target.value) }))}
+                    className="rounded-md border-gray-300"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="px-5 py-4 border-t border-gray-200 flex items-center justify-end gap-2">
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  className="px-4 py-2 text-sm rounded-md border border-gray-300"
+                  disabled={savingEdit}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveEdit}
+                  disabled={savingEdit}
+                  className="px-4 py-2 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {savingEdit && (
+                    <svg
+                      className="animate-spin h-4 w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                  )}
+                  {savingEdit ? "Saving..." : "Save"}
                 </button>
               </div>
             </div>

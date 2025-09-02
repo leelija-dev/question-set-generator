@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import { Outlet } from "react-router-dom";
 import Sidebar from "../partials/Sidebar";
 import Header from "../partials/Header";
-import Banner from "../partials/Banner";
+
 
 const GlobalLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -21,7 +21,7 @@ const GlobalLayout = () => {
           <Outlet /> {/* dashboard content (admin or customer) goes here */}
         </main>
 
-        <Banner />
+       
       </div>
     </div>
   );
